@@ -1,0 +1,1172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Do Voice Agents Follow Preferences?</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a filter rail on the left, the evidence on the right: setup cards, then small-multiple results, then the calls; one call opens as its own view (player + transcript | what the agent got + scores). */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --surface-2: #eceff3; --ink: #141920; --ink-2: #4a5462; --muted: #7d8695;
+  --line: #dde2e8; --line-2: #c5ccd6; --hl: #fff0c7; --hl-ink: #6e4b00; --focus: #2457c5;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --base: #898781;
+  --good: #0ca30c; --bad: #d03b3b; --good-ink: #006300; --bad-ink: #b42318; --warn-ink: #8a5a00;
+  --grid: #e6e9ee; --axis: #c5ccd6;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1014; --surface: #161a20; --surface-2: #1e232b; --ink: #edf0f4; --ink-2: #b3bcc8; --muted: #7e8796;
+  --line: #2a3039; --line-2: #3b424d; --hl: #3a2e10; --hl-ink: #f3cd73; --focus: #7ea4ff;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --base: #898781;
+  --good-ink: #2fbf2f; --bad-ink: #f07f7f; --warn-ink: #e3b04f; --grid: #252a32; --axis: #3b424d; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e1014; --surface: #161a20; --surface-2: #1e232b; --ink: #edf0f4; --ink-2: #b3bcc8; --muted: #7e8796;
+  --line: #2a3039; --line-2: #3b424d; --hl: #3a2e10; --hl-ink: #f3cd73; --focus: #7ea4ff;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --base: #898781;
+  --good-ink: #2fbf2f; --bad-ink: #f07f7f; --warn-ink: #e3b04f; --grid: #252a32; --axis: #3b424d; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px }
+h1, h2, h3 { text-wrap: balance; margin: 0; font-weight: 600 }
+h1 { font-size: 24px; line-height: 1.25; letter-spacing: -0.01em }
+h2 { font-size: 17px }
+h3 { font-size: 14px }
+button, select, input { font: inherit; color: inherit }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px }
+.mono { font-family: var(--mono); font-size: 12.5px }
+.muted { color: var(--muted) }
+.ink2 { color: var(--ink-2) }
+.eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 500 }
+.wrap { max-width: 1440px; margin: 0 auto }
+
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-block: 14px; border-bottom: 1px solid var(--line); margin-bottom: 22px }
+.brand { font-weight: 600; font-size: 13.5px; letter-spacing: .01em }
+.navtabs { display: flex; gap: 4px }
+.navtabs a { padding: 6px 12px; border-radius: 6px; color: var(--ink-2); text-decoration: none; font-size: 13px; border: 1px solid transparent }
+.navtabs a:hover { color: var(--ink); border-color: var(--line-2) }
+.navtabs a[aria-current="page"] { background: var(--ink); color: var(--bg) }
+.hero { display: grid; gap: 10px; max-width: 900px; margin-bottom: 26px }
+.hero h1 { font-size: 30px; line-height: 1.2; letter-spacing: -0.015em }
+.hero .lede { font-size: 16px; color: var(--ink-2); margin: 0; max-width: 72ch }
+.spec { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; margin-bottom: 34px }
+.spec > div { background: var(--surface); padding: 12px 14px; display: grid; gap: 3px; align-content: start }
+.spec b { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 500 }
+.spec span { font-size: 13px }
+.finding { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr); gap: 20px 28px; padding-block: 24px; border-top: 1px solid var(--line); align-items: start }
+@media (max-width: 1000px) { .finding { grid-template-columns: minmax(0, 1fr) } }
+.finding .num { font-family: var(--mono); font-size: 12px; color: var(--muted) }
+.finding h2 { font-size: 20px; line-height: 1.3; margin: 4px 0 8px }
+.finding p { margin: 0 0 10px; color: var(--ink-2); max-width: 62ch }
+.finding .listen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px }
+.finding .charts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)) }
+.foot { border-top: 1px solid var(--line); padding-top: 18px; color: var(--muted); font-size: 12.5px; max-width: 90ch }
+.foot p { margin: 0 0 6px }
+.foot a { color: var(--ink) }
+header.top { padding-block: 22px 18px; display: grid; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 20px }
+header.top p { margin: 0; color: var(--ink-2); max-width: 78ch }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 12.5px }
+.facts b { color: var(--ink-2); font-weight: 500 }
+
+.layout { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 24px; align-items: start }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr) } }
+
+/* filter rail */
+aside.rail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: grid; gap: 16px; padding: 16px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); max-height: calc(100vh - 24px); overflow: auto }
+@media (max-width: 900px) { aside.rail { position: static; max-height: none } }
+.rail .count { display: flex; align-items: baseline; justify-content: space-between; gap: 8px }
+.rail .count strong { font-size: 22px; font-weight: 600 }
+.dim { display: grid; gap: 7px }
+.dim-head { display: flex; align-items: center; justify-content: space-between; gap: 8px }
+.dim-head .lbl { font-weight: 600; font-size: 13px }
+.mode { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap }
+.mode.compare { border-color: transparent; background: var(--ink); color: var(--bg) }
+.mode.fixed { color: var(--ink-2) }
+.chips { display: flex; flex-wrap: wrap; gap: 6px }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line-2);
+  background: var(--surface); cursor: pointer; font-size: 12.5px; line-height: 1.4; user-select: none }
+.chip:hover { border-color: var(--ink-2) }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink) }
+.chip .sw { width: 8px; height: 8px; border-radius: 2px; flex: none }
+.chip .code { font-family: var(--mono); font-size: 10.5px; opacity: .7 }
+.rail .hint { font-size: 12px; color: var(--muted); margin: 0 }
+.rail .actions { display: flex; gap: 8px; flex-wrap: wrap }
+.btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface); cursor: pointer; font-size: 12.5px }
+.btn:hover { border-color: var(--ink-2) }
+a.btn { text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; gap: 4px }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink) }
+details.dd { border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface) }
+details.dd summary { list-style: none; cursor: pointer; padding: 6px 10px; display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px }
+details.dd summary::-webkit-details-marker { display: none }
+details.dd .opts { border-top: 1px solid var(--line); padding: 6px 10px; display: grid; gap: 4px }
+details.dd label { display: flex; gap: 8px; align-items: center; font-size: 12.5px; cursor: pointer }
+
+/* sections */
+main { display: grid; gap: 28px; min-width: 0 }
+section.block { display: grid; gap: 12px; min-width: 0 }
+.block-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap }
+.block-head p { margin: 0; color: var(--ink-2); font-size: 13px; max-width: 80ch }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; min-width: 0 }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px }
+.cards.prefs { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)) }
+.card h3 { margin-bottom: 6px }
+.card p { margin: 0 0 6px }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; font-size: 13px; margin: 0 }
+.kv dt { color: var(--muted) }
+.kv dd { margin: 0 }
+.quote { margin: 6px 0; padding: 8px 12px; border-radius: 6px; background: var(--hl); color: var(--ink); font-size: 13px }
+.quote::before { content: "“" } .quote::after { content: "”" }
+.pre { white-space: pre-wrap; font-size: 12.5px; line-height: 1.55; background: var(--surface-2); border-radius: 6px; padding: 10px 12px;
+  max-height: 260px; overflow: auto; margin: 6px 0 0 }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 2px }
+.tab { padding: 3px 9px; border-radius: 6px; border: 1px solid transparent; background: none; cursor: pointer; font-size: 12px; color: var(--ink-2) }
+.tab[aria-selected="true"] { background: var(--surface-2); border-color: var(--line-2); color: var(--ink) }
+.legend-row { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--ink-2) }
+.legend-row span { display: inline-flex; align-items: center; gap: 6px }
+.legend-row i { width: 10px; height: 10px; border-radius: 2px; display: inline-block }
+.cond-list { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr); gap: 6px 14px; font-size: 12.5px; margin: 0 }
+@media (max-width: 1200px) { .cond-list { grid-template-columns: max-content minmax(0, 1fr) } }
+.cond-list dt { font-weight: 500 } .cond-list dd { margin: 0; color: var(--ink-2) }
+details.fold > summary { cursor: pointer; color: var(--ink-2); font-size: 12.5px }
+
+/* results */
+.grouping { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px; color: var(--ink-2) }
+.grouping b { color: var(--ink); font-weight: 600 }
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden }
+.seg button { border: 0; background: var(--surface); padding: 4px 10px; cursor: pointer; font-size: 12px; color: var(--ink-2) }
+.seg button + button { border-left: 1px solid var(--line-2) }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg) }
+.metric-group { display: grid; gap: 8px }
+.metric-group > .mg-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap }
+.metric-group > .mg-head p { margin: 0; font-size: 12.5px; color: var(--muted) }
+.charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 12px }
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 12px 6px; min-width: 0 }
+.chart .ct { display: flex; justify-content: space-between; gap: 8px; align-items: baseline }
+.chart .ct h3 { font-size: 13px }
+.chart .ct .unit { font-size: 11.5px; color: var(--muted); white-space: nowrap }
+.chart .cd { font-size: 11.5px; color: var(--muted); margin: 2px 0 4px; min-height: 2.6em }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible }
+.chart svg text { fill: var(--muted); font-family: var(--sans); font-size: 10.5px }
+.chart svg .lab { fill: var(--ink-2) }
+.chart svg .val { fill: var(--ink); font-weight: 500 }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }
+table.data { border-collapse: collapse; font-size: 12.5px; width: 100% }
+table.data th, table.data td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; font-variant-numeric: tabular-nums }
+table.data th { font-weight: 500; color: var(--ink-2); background: var(--surface-2); position: sticky; top: 0 }
+table.data td.num { text-align: right }
+table.data tr:last-child td { border-bottom: 0 }
+.tip { position: fixed; z-index: 30; pointer-events: none; background: var(--surface); border: 1px solid var(--line-2); border-radius: 6px;
+  padding: 7px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); max-width: 280px }
+.tip .tv { font-weight: 600; font-size: 13px; color: var(--ink) }
+.tip .tl { color: var(--ink-2) }
+.tip .key { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px }
+
+/* calls list */
+table.calls tbody tr { cursor: pointer }
+table.calls tbody tr:hover { background: var(--surface-2) }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0 }
+.st { display: inline-flex; align-items: center; gap: 4px; font-weight: 500 }
+.st.ok { color: var(--good-ink) } .st.no { color: var(--bad-ink) } .st.na { color: var(--muted); font-weight: 400 } .st.warn { color: var(--warn-ink) }
+.play-mini { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--surface); cursor: pointer; display: inline-grid; place-items: center }
+.play-mini:hover { border-color: var(--ink) }
+.play-mini svg { width: 10px; height: 10px; fill: var(--ink) }
+
+/* detail */
+.back { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); text-decoration: none; font-size: 13px; cursor: pointer; background: none; border: 0; padding: 0 }
+.back:hover { color: var(--ink) }
+.d-title { display: grid; gap: 8px }
+.pills { display: flex; flex-wrap: wrap; gap: 6px }
+.pill { padding: 3px 10px; border-radius: 99px; background: var(--surface-2); font-size: 12.5px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center }
+.pill.ok { color: var(--good-ink) } .pill.no { color: var(--bad-ink) } .pill.warn { color: var(--warn-ink) }
+.player { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 10px }
+.pctl { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+.bigplay { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg); cursor: pointer; display: grid; place-items: center; flex: none }
+.bigplay svg { width: 16px; height: 16px; fill: var(--bg) }
+.ptime { font-family: var(--mono); font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums }
+.lanes-ctl { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; align-items: center }
+.wave { position: relative; width: 100%; cursor: pointer; touch-action: none }
+.wave canvas { display: block; width: 100%; height: 150px }
+.wave .hover-t { position: absolute; top: -4px; transform: translate(-50%, -100%); font-family: var(--mono); font-size: 11px; background: var(--ink); color: var(--bg); padding: 1px 5px; border-radius: 4px; pointer-events: none }
+.d-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start }
+@media (max-width: 1100px) { .d-grid { grid-template-columns: minmax(0, 1fr) } }
+.transcript { max-height: 640px; overflow: auto; display: grid; gap: 2px; padding: 4px }
+.utt { display: grid; grid-template-columns: 46px 64px minmax(0, 1fr); gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 13px }
+.utt:hover { background: var(--surface-2) }
+.utt .t { font-family: var(--mono); font-size: 11.5px; color: var(--muted); padding-top: 2px }
+.utt .who { font-size: 12px; font-weight: 500; color: var(--ink-2); display: flex; align-items: flex-start; gap: 6px; padding-top: 1px }
+.utt .who i { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex: none }
+.utt.pref { background: var(--hl) }
+.utt.now { outline: 1.5px solid var(--ink-2) }
+.utt.tool { cursor: default; color: var(--muted); font-family: var(--mono); font-size: 11.5px }
+.utt.tool .who { color: var(--muted); font-family: var(--sans) }
+.badge { display: inline-block; font-size: 10.5px; padding: 0 6px; border-radius: 99px; border: 1px solid currentColor; margin-left: 6px; vertical-align: 1px; font-family: var(--sans) }
+.stack { display: grid; gap: 12px; min-width: 0 }
+table.mini { border-collapse: collapse; font-size: 12.5px; width: 100% }
+table.mini th, table.mini td { padding: 4px 8px; text-align: right; font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line) }
+table.mini th:first-child, table.mini td:first-child { text-align: left }
+table.mini th { color: var(--muted); font-weight: 500 }
+table.mini td.ref { color: var(--muted) }
+.empty { padding: 24px; text-align: center; color: var(--muted); background: var(--surface); border: 1px dashed var(--line-2); border-radius: var(--r) }
+.calls-wrap { max-height: 430px; overflow: auto }
+
+/* side by side: one row per request, one column per agent */
+.side-head { display: grid; gap: 8px; max-width: 900px; margin-bottom: 18px }
+.side-head p { margin: 0; color: var(--ink-2); font-size: 15px; max-width: 76ch }
+.side-key { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); align-items: center }
+.side-key span { display: inline-flex; align-items: center; gap: 6px }
+.side-key i { display: inline-block; border-radius: 2px }
+.mood-block { display: grid; gap: 10px; margin-top: 26px }
+.mood-block > .mb-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap }
+.mood-block > .mb-head p { margin: 0; color: var(--muted); font-size: 13px }
+.sx { display: grid; grid-template-columns: minmax(170px, 0.85fr) repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden }
+.sx > div { background: var(--surface); padding: 12px 14px; min-width: 0 }
+.sx .colh { background: var(--surface-2); font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 2px; padding-block: 8px }
+.sx .colh.corner { font-weight: 500; color: var(--muted); font-size: 12px }
+.sx .rowh { display: grid; gap: 6px; align-content: start }
+.sx .rowh h3 { font-size: 14px }
+.sx .rowh .quote { font-size: 12.5px; margin: 0; line-height: 1.45 }
+.sx-cell { display: grid; gap: 7px; align-content: start }
+.sx-cell .top { display: flex; align-items: center; gap: 8px; min-width: 0 }
+.sx-cell .mname { display: none; font-weight: 600; font-size: 13px; align-items: center }
+.sx-cell .ptime { font-size: 12px }
+.sx-cell .open { margin-left: auto; font-size: 12px; color: var(--ink-2); text-decoration: none; white-space: nowrap }
+.sx-cell .open:hover { color: var(--ink); text-decoration: underline }
+.sx-cell canvas { display: block; width: 100%; height: 54px; cursor: pointer; border-radius: 4px; touch-action: none }
+.sx-cell .marks { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px }
+@media (max-width: 900px) {
+  .sx { grid-template-columns: minmax(0, 1fr) }
+  .sx .colh { display: none }
+  .sx .rowh { background: var(--surface-2) }
+  .sx-cell .mname { display: inline-flex }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important } }
+</style>
+
+<div class="wrap">
+  <nav class="topbar" aria-label="Views">
+    <span class="brand">Voice agents and caller preferences</span>
+    <div class="navtabs"><a href="#findings" id="nav-findings">Findings</a><a href="#side" id="nav-side">Side by side</a><a href="#explore" id="nav-explore">Explore calls</a></div>
+  </nav>
+
+  <div id="findings"></div>
+  <div id="side" hidden></div>
+
+  <div id="overview" class="layout" hidden>
+    <aside class="rail" aria-label="Filters">
+      <div class="count"><span class="eyebrow">Matching calls</span><strong id="nmatch">–</strong></div>
+      <p class="hint">Nothing picked in a group: all of it, pooled. One picked: fixed. Two or more picked: compared side by side.</p>
+      <div class="dim" id="set-dim">
+        <div class="dim-head"><span class="lbl">Calls</span></div>
+        <div class="seg" role="group" aria-label="Which calls"><button type="button" id="set-all" aria-pressed="true">All</button><button type="button" id="set-main" aria-pressed="false">Main grid only</button></div>
+        <p class="hint" id="set-hint"></p>
+      </div>
+      <div class="dim">
+        <div class="dim-head"><span class="lbl">Task</span><span class="mode" id="mode-task">pooled</span></div>
+        <details class="dd" id="task-dd"><summary><span id="task-sum">All tasks</span><span aria-hidden="true">▾</span></summary><div class="opts" id="task-opts"></div></details>
+      </div>
+      <div id="dims"></div>
+      <div class="actions"><button class="btn" id="reset" type="button">Clear all</button><button class="btn" id="deflt" type="button">Default comparison</button></div>
+    </aside>
+
+    <main>
+      <section class="block" aria-labelledby="h-calls">
+        <div class="block-head"><h2 id="h-calls">Calls</h2><p>Play a call here, or open it to see the transcript, what the agent was given and every score.</p></div>
+        <div id="calls"></div>
+      </section>
+
+      <section class="block" aria-labelledby="h-setup">
+        <div class="block-head"><h2 id="h-setup">Setup for this selection</h2><p>What the caller is going through, what they want, and what the agent was given.</p></div>
+        <div id="setup" style="display:grid;gap:12px"></div>
+      </section>
+
+      <section class="block" aria-labelledby="h-res">
+        <div class="block-head"><h2 id="h-res">Results</h2>
+          <div class="seg" role="group" aria-label="View"><button type="button" id="v-chart" aria-pressed="true">Charts</button><button type="button" id="v-table" aria-pressed="false">Table</button></div>
+        </div>
+        <div class="grouping" id="grouping"></div>
+        <div class="legend-row" id="legend"></div>
+        <div id="results" style="display:grid;gap:22px"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="detail" hidden></div>
+  <div class="tip" id="tip" hidden></div>
+  <audio id="mini-audio" preload="none"></audio>
+</div>
+
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const h = (tag, attrs = {}, ...kids) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v; else if (k === "text") el.textContent = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v); else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return el;
+};
+const SVGNS = "http://www.w3.org/2000/svg";
+const s = (tag, attrs = {}) => { const el = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); return el; };
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const mmss = sec => { sec = Math.max(0, Math.floor(sec)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; };
+const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+
+/* ---------- dimensions ---------- */
+const DIMS = [
+  { key: "mood", label: "Caller mood", values: [["sad", "Sad", "s1"], ["happy", "Happy", "s2"]] },
+  { key: "tone", label: "Wanted voice", values: [["soft", "Soft", "s1"], ["upbeat", "Upbeat", "s2"], ["none", "No preference", "base"]] },
+  { key: "timing", label: "Wanted chat timing", values: [["first", "Chat first", "s1"], ["after", "Task first, chat after", "s2"], ["none", "No preference", "base"]] },
+  { key: "given", label: "How the agent learns it", values: [["B0", "Not at all", "base", "B0"], ["E1", "Said directly", "s1", "E1"], ["E2", "Hinted", "s2", "E2"], ["H1", "One past call", "s3", "H1"], ["H2", "Past calls, both moods", "s4", "H2"], ["M2", "Memory note", "s5", "M2"]] },
+  { key: "model", label: "Voice agent", values: [["gpt-live", "GPT-Live", "s1"], ["grok", "Grok Voice", "s2"], ["gemini", "Gemini Live", "s3"]] },
+];
+const SHORT = { B0: "None", E1: "Said", E2: "Hinted", H1: "Past ×1", H2: "Past ×2", M2: "Memory", first: "Chat first", after: "Chat after", none: "No pref.", "gpt-live": "GPT-Live", grok: "Grok", gemini: "Gemini", sad: "Sad", happy: "Happy", soft: "Soft", upbeat: "Upbeat" };
+const X_PRIORITY = ["given", "mood", "tone", "timing", "task", "model"];
+const DIM = Object.fromEntries(DIMS.map(d => [d.key, d]));
+const valLabel = (dim, v) => { if (dim === "task") return TASKS[v]?.short || v; const x = DIM[dim].values.find(a => a[0] === v); return x ? x[1] : v; };
+const valColor = (dim, v) => { if (dim === "task") return css("--s1"); const x = DIM[dim].values.find(a => a[0] === v); return css("--" + (x ? x[2] : "base")); };
+const MODEL_NAME = { "gpt-live": "GPT-Live", grok: "Grok Voice", gemini: "Gemini Live" };
+let TASKS = {};
+
+/* ---------- metrics ---------- */
+const SEGS = ["Start", "Middle", "End", "Whole call"];
+const callerOk = c => ["valid", "cleared", "slip_minor"].includes(c.m.caller);
+const METRICS = [
+  { group: "Task", note: "Did the change get made exactly right, and did the simulated caller keep to its task?", items: [
+    { id: "task", label: "Task done right", kind: "rate", get: c => c.m.task_ok ? 1 : 0, desc: "Reservation changed exactly as required (tau-bench reward 1)." },
+    { id: "caller", label: "Caller kept to its task", kind: "rate", get: c => callerOk(c) ? 1 : 0, desc: "No caller mistake that changed the outcome (judge + manual review)." },
+  ] },
+  { group: "Chat timing", note: "When the agent invites the caller to talk about their news. Judged from the transcript.", items: [
+    { id: "timing", label: "Talked about the news at the wanted moment", kind: "rate", get: c => c.m.timing_ok == null ? null : (c.m.timing_ok ? 1 : 0), desc: "Chat first: invited before the flight work. Chat after: invited once the flight was done. Calls where it cannot be judged are left out." },
+    { id: "before", label: "Invited to chat before the task", kind: "rate", get: c => c.m.invited_before == null ? null : (c.m.invited_before ? 1 : 0), desc: "Any call. A condolence or congratulation alone does not count." },
+    { id: "after", label: "Invited to chat after the task", kind: "rate", get: c => c.m.invited_after == null ? null : (c.m.invited_after ? 1 : 0), desc: "Any call where the flight was done." },
+  ] },
+  { group: "Agent voice", note: "Measured on the agent's own audio. Energy and positivity come from a speech emotion model (0 to 1). Pick a part of the call:", seg: true, items: [
+    { id: "arousal", label: "Energy", kind: "value", key: "arousal", unit: "0–1", fmt: v => v.toFixed(2), desc: "Calm and soft (low) to lively (high)." },
+    { id: "valence", label: "Positivity", kind: "value", key: "valence", unit: "0–1", fmt: v => v.toFixed(2), desc: "Negative (low) to positive (high)." },
+    { id: "pitch", label: "Pitch variation", kind: "value", key: "pitch_range_st", unit: "semitones", fmt: v => v.toFixed(1), desc: "How much the pitch moves within a turn. Gemini's values run high (octave-corrected, an upper bound)." },
+    { id: "rate", label: "Speaking rate", kind: "value", key: "rate_wps", unit: "words/s", fmt: v => v.toFixed(2), desc: "Words per second of the agent's turns." },
+    { id: "loud", label: "Loudness", kind: "value", key: "loudness_db", unit: "dBFS", fmt: v => v.toFixed(1), desc: "Level of the agent's speech." },
+  ] },
+  { group: "Turn-taking", note: "Full-duplex behaviour: both sides can talk at once.", items: [
+    { id: "lat", label: "Response time", kind: "value", zero: true, unit: "s", get: c => c.m.duplex.latency_med == null ? null : c.m.duplex.latency_med / 1000, fmt: v => v.toFixed(2), desc: "Typical gap (each call's median) from the caller stopping to the agent starting." },
+    { id: "sil", label: "Long silences", kind: "value", zero: true, unit: "per call", get: c => c.m.duplex.silence_gt3s, fmt: v => v.toFixed(1), desc: "Waits of more than 3 s before the agent answers." },
+    { id: "barge", label: "Caller barge-ins", kind: "value", zero: true, unit: "per call", get: c => c.m.duplex.barge_ins, fmt: v => v.toFixed(1), desc: "The caller starts talking (1 s or more) while the agent is speaking." },
+    { id: "cut", label: "Agent cut-ins", kind: "value", zero: true, unit: "per call", get: c => c.m.duplex.agent_interruptions, fmt: v => v.toFixed(1), desc: "The agent starts talking while the caller is still speaking." },
+    { id: "ovl", label: "Overlapping speech", kind: "value", zero: true, unit: "s", get: c => c.m.duplex.overlap_s, fmt: v => v.toFixed(1), desc: "Seconds in which both talk at once." },
+    { id: "talk", label: "Agent talk share", kind: "value", zero: true, unit: "% of call", get: c => c.m.duplex.agent_talk == null ? null : c.m.duplex.agent_talk * 100, fmt: v => v.toFixed(0), desc: "Share of the call during which the agent speaks." },
+    { id: "len", label: "Call length", kind: "value", zero: true, unit: "min", get: c => c.dur / 60, fmt: v => v.toFixed(1), desc: "From the first word to the end of the call." },
+    { id: "bye", label: "Ended with a goodbye", kind: "rate", get: c => c.m.ended === "natural" ? 1 : 0, desc: "The rest ended after a long silence, with no goodbye." },
+  ] },
+];
+const ALLM = METRICS.flatMap(g => g.items.map(m => ({ ...m, group: g.group })));
+function metricValue(m, c, seg) {
+  if (m.get) return m.get(c);
+  const v = c.m.tone[m.key]; return v ? v[seg] : null;
+}
+
+/* ---------- state ---------- */
+let DATA, CALLS = [], CORE = [];
+const state = { sel: {}, swap: false, view: "chart", seg: 3, setupTab: {}, set: "all" };
+function defaults() {
+  for (const d of [...DIMS.map(x => x.key), "task"]) state.sel[d] = new Set();
+  state.sel.given = new Set(["B0", "E1", "E2", "H1", "H2", "M2"]);
+  state.sel.model = new Set(["gpt-live", "grok", "gemini"]);
+  state.swap = false; state.set = "all";
+}
+function save() { try { localStorage.setItem("vafp-state", JSON.stringify({ sel: Object.fromEntries(Object.entries(state.sel).map(([k, v]) => [k, [...v]])), swap: state.swap, view: state.view, seg: state.seg, set: state.set })); } catch (e) {} }
+function load() {
+  try {
+    const x = JSON.parse(localStorage.getItem("vafp-state") || "null"); if (!x) return false;
+    for (const [k, v] of Object.entries(x.sel)) state.sel[k] = new Set(v);
+    state.swap = !!x.swap; state.view = x.view || "chart"; state.seg = Number.isInteger(x.seg) ? x.seg : 3; state.set = x.set === "main" ? "main" : "all"; return true;
+  } catch (e) { return false; }
+}
+const allKeys = () => ["task", ...DIMS.map(d => d.key)];
+const isCore = c => c.core !== false;
+const match = c => (state.set === "all" || isCore(c)) && allKeys().every(k => state.sel[k].size === 0 || state.sel[k].has(c[k]));
+function grouping() {
+  const split = X_PRIORITY.filter(k => state.sel[k].size >= 2);
+  const fixed = allKeys().filter(k => state.sel[k].size === 1);
+  const pooled = allKeys().filter(k => state.sel[k].size === 0);
+  let x = split[0] || null, col = split[1] || null;
+  if (state.swap && x && col) [x, col] = [col, x];
+  return { split, fixed, pooled, x, col };
+}
+const orderedVals = k => k === "task" ? Object.keys(TASKS) : DIM[k].values.map(v => v[0]);
+const selVals = k => orderedVals(k).filter(v => state.sel[k].has(v));
+
+/* ---------- rail ---------- */
+function buildRail() {
+  const box = $("#dims"); box.textContent = "";
+  for (const d of DIMS) {
+    const chips = h("div", { class: "chips" });
+    for (const [v, lab, col, code] of d.values) {
+      chips.append(h("button", { type: "button", class: "chip", "aria-pressed": "false", "data-dim": d.key, "data-v": v,
+        onclick: () => { const S = state.sel[d.key]; S.has(v) ? S.delete(v) : S.add(v); update(); } },
+        h("span", { class: "sw", style: `background:var(--${col})` }), lab, code ? h("span", { class: "code", text: code }) : null));
+    }
+    box.append(h("div", { class: "dim", style: "margin-bottom:14px" },
+      h("div", { class: "dim-head" }, h("span", { class: "lbl", text: d.label }), h("span", { class: "mode", id: "mode-" + d.key })), chips));
+  }
+  const opts = $("#task-opts"); opts.textContent = "";
+  const all = h("input", { type: "checkbox", id: "task-all" });
+  all.addEventListener("change", () => { state.sel.task = new Set(); update(); });
+  opts.append(h("label", { for: "task-all" }, all, "All tasks (pooled)"));
+  for (const [id, t] of Object.entries(TASKS)) {
+    const cb = h("input", { type: "checkbox", id: "task-" + id, "data-task": id });
+    cb.addEventListener("change", () => { cb.checked ? state.sel.task.add(id) : state.sel.task.delete(id); update(); });
+    opts.append(h("label", { for: "task-" + id }, cb, `${t.title} (${id})`));
+  }
+}
+function syncRail(n) {
+  $("#nmatch").textContent = n;
+  $("#set-all").setAttribute("aria-pressed", state.set === "all" ? "true" : "false");
+  $("#set-main").setAttribute("aria-pressed", state.set === "main" ? "true" : "false");
+  const nCore = CALLS.filter(isCore).length, nX = CALLS.length - nCore;
+  $("#set-dim").hidden = nX === 0;
+  $("#set-hint").textContent = state.set === "all" ? `All ${CALLS.length}: the main grid (${nCore}) plus ${nX} extra calls where the caller says it (E1) with the other voice and timing pairings.` : `The ${nCore} main-grid calls, as on the Findings page.`;
+  for (const b of document.querySelectorAll(".chip")) b.setAttribute("aria-pressed", state.sel[b.dataset.dim].has(b.dataset.v) ? "true" : "false");
+  for (const k of allKeys()) {
+    const el = $("#mode-" + k); const size = state.sel[k].size;
+    el.textContent = size === 0 ? "all · pooled" : size === 1 ? "fixed" : "compared";
+    el.className = "mode" + (size >= 2 ? " compare" : size === 1 ? " fixed" : "");
+  }
+  $("#task-all").checked = state.sel.task.size === 0;
+  for (const cb of document.querySelectorAll("[data-task]")) cb.checked = state.sel.task.has(cb.dataset.task);
+  $("#task-sum").textContent = state.sel.task.size === 0 ? "All tasks" : [...state.sel.task].map(t => TASKS[t].title).join(", ");
+}
+
+/* ---------- setup cards ---------- */
+const COND_TEXT = {
+  B0: "Baseline. No preference anywhere: the caller never asks and the agent has no history or notes. Shows each agent's default.",
+  E1: "The caller asks for the voice and the chat timing in this call, in plain words.",
+  E2: "The caller hints at it in this call, less directly.",
+  H1: "The caller says nothing today. The agent's instructions include the opening of one earlier call, in the same mood, where the caller asked for it.",
+  H2: "As above, plus an earlier call in the other mood where the caller asked for something else.",
+  M2: "The caller says nothing today. The agent gets a short note distilled from those two earlier calls (written once by a fixed extractor, kept as is).",
+};
+const prefText = (tone, timing) => `${tone === "soft" ? "a soft, gentle voice" : "an upbeat, cheerful voice"}, and ${timing === "first" ? "to talk about it first, before the flight" : "to handle the flight first and talk about it after"}`;
+function taskCard(t, compact) {
+  const c = t.correct, o = t.original;
+  const fl = f => `${f.flight} ${f.from}→${f.to} ${f.dep}–${f.arr}`;
+  return h("div", { class: "card" },
+    h("span", { class: "eyebrow", text: `Task · ${t.id}` }), h("h3", { text: t.title }), h("p", { text: t.plain }),
+    h("dl", { class: "kv" },
+      h("dt", { text: "Caller knows" }), h("dd", { text: t.caller_knows.join(" · ") }),
+      h("dt", { text: "Correct change" }), h("dd", {}, h("b", { text: `${c.flights.map(f => f.flight).join(" + ")} on ${c.date}, economy, $${c.total}` }), `; refund to ${c.payment}`)),
+    h("details", { class: "fold", style: "margin-top:6px" }, h("summary", { text: "Flights, original booking and common wrong answers" }),
+      h("dl", { class: "kv", style: "margin-top:6px" },
+        h("dt", { text: "Booked now" }), h("dd", { text: `${o.reservation}: ${o.flights.map(fl).join(", ")} on ${o.date}, ${o.cabin}; paid ${o.paid}` }),
+        h("dt", { text: "Correct flights" }), h("dd", { text: c.flights.map(f => `${fl(f)} ($${f.economy})`).join(", ") }),
+        h("dt", { text: "Easy to get wrong" }), h("dd", { text: t.common_alternatives.map(a => `${a.flights.join(" + ")} ($${a.total}): ${a.note}`).join(" ") }))),
+    h("p", { class: "muted", style: "margin-top:6px;font-size:12px", text: t.success }));
+}
+const third = t => t.replace(/\bYou['’]re\b/g, "They’re").replace(/\byou['’]re\b/g, "they’re").replace(/\bYour\b/g, "Their").replace(/\byour\b/g, "their").replace(/\bYou\b/g, "They").replace(/\byou\b/g, "they");
+function moodCard(k, md, compact) {
+  const facts = Object.entries(md.facts);
+  return h("div", { class: "card" },
+    h("span", { class: "eyebrow", text: "Caller mood" }), h("h3", { text: md.title }),
+    h("p", {}, h("span", { class: "muted", text: "How they bring it up: " }), h("span", { text: `“${md.disclosure}”` })),
+    h("details", { class: "fold" }, h("summary", { text: `Their situation and story card (${facts.length} facts the caller can draw on)` }),
+      h("p", { class: "ink2", style: "margin-top:6px", text: third(md.background) }),
+      h("dl", { class: "kv", style: "margin-top:6px" }, facts.flatMap(([a, b]) => [h("dt", { text: a.replace(/_/g, " ") }), h("dd", { text: b })]))));
+}
+function cfgCard(key, cf, givens) {
+  const tabs = ["E1", "E2", "H1", "H2", "M2"].filter(g => givens.has(g));
+  if (!tabs.length) return null;
+  let cur = state.setupTab[key] && tabs.includes(state.setupTab[key]) ? state.setupTab[key] : tabs[0];
+  const body = h("div");
+  const tabBar = h("div", { class: "tabs", role: "tablist" });
+  const show = g => {
+    cur = g; state.setupTab[key] = g;
+    for (const b of tabBar.children) b.setAttribute("aria-selected", b.dataset.g === g ? "true" : "false");
+    body.textContent = "";
+    if (g === "E1" || g === "E2") body.append(h("p", { class: "muted", style: "margin:4px 0 0;font-size:12.5px", text: g === "E1" ? "The caller says, early in the call:" : "The caller hints, early in the call:" }), h("div", { class: "quote", text: cf[g] }));
+    else body.append(h("p", { class: "muted", style: "margin:4px 0 0;font-size:12.5px", text: g === "M2" ? "Added to the agent's instructions (the caller says nothing about it):" : "Added to the agent's instructions (the caller says nothing about it):" }), h("div", { class: "pre", text: cf[g] }));
+  };
+  for (const g of tabs) tabBar.append(h("button", { type: "button", class: "tab", role: "tab", "data-g": g, title: valLabel("given", g), onclick: () => show(g) }, `${SHORT[g]} `, h("span", { class: "mono muted", text: g })));
+  show(cur);
+  return h("div", { class: "card" },
+    h("span", { class: "eyebrow", text: "Preference" }),
+    h("h3", { text: `${valLabel("mood", cf.mood)} caller wants ${cf.tone === "upbeat" ? "an upbeat" : "a soft"} voice, ${cf.timing === "first" ? "chat first" : "task first, chat after"}` }),
+    h("p", { class: "ink2", style: "font-size:13px", text: `They would like ${prefText(cf.tone, cf.timing)}.` }),
+    givens.has("H2") || givens.has("M2") ? h("p", { class: "muted", style: "font-size:12px", text: `The past call in the other mood asked for: ${cf.h2_other.replace(/_/g, " · ")}.` }) : null,
+    tabBar, body);
+}
+function renderSetup(calls) {
+  const box = $("#setup"); box.textContent = "";
+  if (!calls.length) { box.append(h("div", { class: "empty", text: "No calls match. Clear a filter to see results." })); return; }
+  const S = DATA.setup;
+  const row1 = h("div", { class: "cards" });
+  for (const t of [...new Set(calls.map(c => c.task))]) row1.append(taskCard(S.task));
+  for (const m of ["sad", "happy"].filter(m => calls.some(c => c.mood === m))) row1.append(moodCard(m, S.moods[m]));
+  const row2 = h("div", { class: "cards prefs" });
+  for (const k of Object.keys(S.cfgs)) {
+    if (!calls.some(c => c.cfg === k)) continue;
+    const card = cfgCard(k, S.cfgs[k], new Set(calls.filter(c => c.cfg === k).map(c => c.given)));
+    if (card) row2.append(card);
+  }
+  const givens = new Set(calls.map(c => c.given));
+  const conds = DIM.given.values.filter(v => givens.has(v[0]));
+  const legend = h("div", { class: "card" }, h("span", { class: "eyebrow", text: "How the agent learns the preference" }),
+    h("dl", { class: "cond-list", style: "margin-top:6px" }, conds.flatMap(([v, lab, col]) => [h("dt", {}, h("span", { class: "dot", style: `background:var(--${col})` }), `${lab} `, h("span", { class: "mono muted", text: v })), h("dd", { text: COND_TEXT[v] })])));
+  box.append(row1);
+  if (row2.children.length) box.append(row2);
+  box.append(legend);
+}
+
+/* ---------- groups & aggregates ---------- */
+function specFromG(calls, G) {
+  const xs = G.x ? selVals(G.x).map(v => ({ k: v, label: SHORT[v] || valLabel(G.x, v), name: valLabel(G.x, v), color: valColor(G.x, v) }))
+                 : [{ k: null, label: "All matching calls", name: "All matching calls" }];
+  const cs = G.col ? selVals(G.col).map(v => ({ k: v, name: valLabel(G.col, v), color: valColor(G.col, v) })) : [{ k: null }];
+  return { xs, cs, cell: (x, c) => calls.filter(cl => (x.k == null || cl[G.x] === x.k) && (c.k == null || cl[G.col] === c.k)) };
+}
+function agg(m, calls, seg) {
+  const vals = calls.map(c => ({ c, v: metricValue(m, c, seg) })).filter(o => o.v != null && !Number.isNaN(o.v));
+  if (m.kind === "rate") { const k = vals.filter(o => o.v === 1).length; return { n: vals.length, k, value: vals.length ? 100 * k / vals.length : null, vals }; }
+  return { n: vals.length, value: vals.length ? mean(vals.map(o => o.v)) : null, vals };
+}
+const fmtAgg = (m, a) => a.value == null ? "n/a" : m.kind === "rate" ? `${Math.round(a.value)}% (${a.k}/${a.n})` : `${m.fmt(a.value)} ${m.unit === "s" || m.unit === "min" ? m.unit : ""}`.trim();
+
+/* ---------- tooltip ---------- */
+const tip = $("#tip");
+function showTip(ev, value, label, color, extra) {
+  tip.textContent = "";
+  tip.append(h("div", { class: "tv", text: value }), h("div", { class: "tl" }, color ? h("span", { class: "key", style: `background:${color}` }) : null, label));
+  if (extra) tip.append(h("div", { class: "muted", style: "margin-top:2px", text: extra }));
+  tip.hidden = false; moveTip(ev);
+}
+function moveTip(ev) {
+  const r = tip.getBoundingClientRect(); let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14; if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+const hideTip = () => { tip.hidden = true; };
+
+/* ---------- chart ---------- */
+function niceTicks(lo, hi, n = 4) {
+  const span = hi - lo || 1, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(st => span / st <= n) || 10 * mag;
+  const a = Math.floor(lo / step) * step, b = Math.ceil(hi / step) * step, out = [];
+  for (let v = a; v <= b + step / 2; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+function drawChart(card, m, spec, seg) {
+  const W = Math.max(240, card.clientWidth - 24), H = 184;
+  const xs = spec.xs, cols = spec.cs;
+  const ML = 38, MR = 6, MT = 14, MB = 38, PW = W - ML - MR, PH = H - MT - MB;
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": m.label });
+  const aggs = xs.flatMap(x => cols.map(c => ({ x, c, a: agg(m, spec.cell(x, c), seg) })));
+  let lo, hi;
+  if (m.kind === "rate") { lo = 0; hi = 100; }
+  else {
+    const all = aggs.flatMap(o => o.a.vals.map(v => v.v));
+    if (!all.length) { lo = 0; hi = 1; } else { lo = Math.min(...all); hi = Math.max(...all); }
+    if (m.zero) lo = Math.min(0, lo);
+    const pad = (hi - lo) * 0.08 || 0.5; if (!m.zero) lo -= pad; hi += pad;
+  }
+  const ticks = niceTicks(lo, hi, 4); lo = ticks[0]; hi = ticks[ticks.length - 1];
+  const y = v => MT + PH - (v - lo) / (hi - lo) * PH;
+  for (const t of ticks) {
+    svg.append(s("line", { x1: ML, x2: W - MR, y1: y(t), y2: y(t), stroke: css("--grid"), "stroke-width": 1 }));
+    const tx = s("text", { x: ML - 6, y: y(t) + 3.5, "text-anchor": "end" }); tx.textContent = m.kind === "rate" ? `${t}%` : String(t); svg.append(tx);
+  }
+  svg.append(s("line", { x1: ML, x2: W - MR, y1: y(lo), y2: y(lo), stroke: css("--axis"), "stroke-width": 1 }));
+  const band = PW / xs.length, inner = band * 0.78, bw = Math.max(5, Math.min(24, inner / cols.length - 2));
+  const totalBars = xs.length * cols.length;
+  xs.forEach((xo, i) => {
+    const cx = ML + band * i + band / 2;
+    const lt = xo.label;
+    const lbl = s("text", { x: cx, y: H - MB + 15, "text-anchor": "middle", class: "lab" });
+    const words = lt.split(" ");
+    if (lt.length * 5.6 > band - 4 && words.length > 1) {
+      const half = Math.ceil(words.length / 2);
+      [words.slice(0, half).join(" "), words.slice(half).join(" ")].forEach((w, k) => { const ts = s("tspan", { x: cx, dy: k ? 12 : 0 }); ts.textContent = w; lbl.append(ts); });
+    } else lbl.textContent = lt;
+    svg.append(lbl);
+    cols.forEach((co, j) => {
+      const o = aggs.find(o => o.x === xo && o.c === co);
+      const color = co.color || xo.color || css("--s1");
+      const bx = cx - (cols.length * (bw + 2) - 2) / 2 + j * (bw + 2);
+      const name = xo.name + (co.name ? ` · ${co.name}` : "");
+      if (o.a.value == null) {
+        const t = s("text", { x: bx + bw / 2, y: y(lo) - 4, "text-anchor": "middle" }); t.textContent = "–"; svg.append(t); return;
+      }
+      if (m.kind === "rate" || m.zero) {
+        const top0 = y(o.a.value), base = y(Math.max(lo, 0)), top = Math.min(top0, base - 2), hgt = base - top, r = Math.min(4, bw / 2, hgt);
+        if (o.a.value === 0) { const z = s("text", { x: bx + bw / 2, y: base - 5, "text-anchor": "middle" }); z.textContent = "0"; svg.append(z); }
+        const d = `M${bx},${base} V${top + r} Q${bx},${top} ${bx + r},${top} H${bx + bw - r} Q${bx + bw},${top} ${bx + bw},${top + r} V${base} Z`;
+        svg.append(s("path", { d, fill: color }));
+        if (m.kind !== "rate") for (const [k, v] of o.a.vals.entries()) {
+          svg.append(s("circle", { cx: bx + bw / 2 + ((k % 5) - 2) * Math.min(2, bw / 8), cy: y(v.v), r: 2.4, fill: css("--surface"), stroke: css("--ink-2"), "stroke-width": 1, opacity: .75 }));
+        }
+        if (totalBars <= 8 && m.kind === "rate") { const t = s("text", { x: bx + bw / 2, y: top - 4, "text-anchor": "middle", class: "val" }); t.textContent = `${Math.round(o.a.value)}%`; svg.append(t); }
+      } else {
+        for (const [k, v] of o.a.vals.entries()) svg.append(s("circle", { cx: bx + bw / 2 + ((k % 5) - 2) * Math.min(2.2, bw / 7), cy: y(v.v), r: 3, fill: color, opacity: .45 }));
+        svg.append(s("rect", { x: bx - 2, y: y(o.a.value) - 2, width: bw + 4, height: 4, rx: 2, fill: color, stroke: css("--surface"), "stroke-width": 1.5 }));
+      }
+      const hit = s("rect", { x: bx - 3, y: MT, width: bw + 6, height: PH, fill: "transparent", tabindex: 0 });
+      const val = fmtAgg(m, o.a) + (m.kind === "value" ? ` · n=${o.a.n}` : "");
+      hit.addEventListener("pointerenter", ev => showTip(ev, val, name, color, m.kind === "value" && o.a.n ? `calls range ${m.fmt(Math.min(...o.a.vals.map(v => v.v)))} to ${m.fmt(Math.max(...o.a.vals.map(v => v.v)))}` : null));
+      hit.addEventListener("pointermove", moveTip); hit.addEventListener("pointerleave", hideTip);
+      hit.addEventListener("focus", () => { const r = hit.getBoundingClientRect(); showTip({ clientX: r.right, clientY: r.top }, val, name, color); });
+      hit.addEventListener("blur", hideTip);
+      svg.append(hit);
+    });
+  });
+  return svg;
+}
+function renderResults(calls) {
+  const G = grouping(), box = $("#results"); box.textContent = "";
+  const gp = $("#grouping"); gp.textContent = "";
+  const names = k => k === "task" ? "Task" : DIM[k].label;
+  if (G.x && (state.view === "table" || G.split.length > 2)) {
+    gp.append(h("span", {}, "Compared: ", G.split.map((k, i) => h("span", {}, i ? " × " : "", h("b", { text: names(k) }))), " (one table row per combination)"));
+  } else if (G.x) {
+    gp.append(h("span", {}, "Compared: ", h("b", { text: names(G.x) }), " along the x-axis", G.col ? h("span", {}, ", ", h("b", { text: names(G.col) }), " as colour") : ""));
+    if (G.col) gp.append(h("button", { type: "button", class: "btn", onclick: () => { state.swap = !state.swap; update(); } }, "Swap axes"));
+  } else gp.append(h("span", { text: "Nothing compared: every chart shows all matching calls pooled. Pick two or more values in a group to compare them." }));
+  if (G.fixed.length) gp.append(h("span", {}, "Fixed: ", G.fixed.map((k, i) => h("span", {}, i ? ", " : "", h("b", { text: valLabel(k, [...state.sel[k]][0]) })))));
+  if (G.split.length > 2) gp.append(h("span", { class: "st warn", text: `More than two groups are compared (${G.split.map(names).join(", ")}): charts use the first two; the table lists every combination.` }));
+  const lg = $("#legend"); lg.textContent = "";
+  if (G.col && state.view === "chart" && G.split.length <= 2) for (const v of selVals(G.col)) lg.append(h("span", {}, h("i", { style: `background:${valColor(G.col, v)}` }), valLabel(G.col, v)));
+  if (!calls.length) { box.append(h("div", { class: "empty", text: "No calls match the current filters." })); return; }
+  $("#v-chart").setAttribute("aria-pressed", state.view === "chart" ? "true" : "false");
+  $("#v-table").setAttribute("aria-pressed", state.view === "table" ? "true" : "false");
+  if (state.view === "table" || G.split.length > 2) { box.append(renderTable(calls, G)); return; }
+  const spec = specFromG(calls, G);
+  for (const grp of METRICS) {
+    const head = h("div", { class: "mg-head" }, h("h3", { text: grp.group }), h("p", { text: grp.note }));
+    if (grp.seg) {
+      const seg = h("div", { class: "seg", role: "group", "aria-label": "Part of the call" });
+      SEGS.forEach((lab, i) => seg.append(h("button", { type: "button", "aria-pressed": state.seg === i ? "true" : "false", onclick: () => { state.seg = i; update(); } }, lab)));
+      head.append(seg);
+    }
+    const grid = h("div", { class: "charts" });
+    const wrap = h("div", { class: "metric-group" }, head, grid);
+    box.append(wrap);
+    const cards = grp.items.map(m => {
+      const card = h("div", { class: "chart" }, h("div", { class: "ct" }, h("h3", { text: m.label }), h("span", { class: "unit", text: m.kind === "rate" ? "% of calls" : m.unit })), h("div", { class: "cd", text: m.desc }));
+      grid.append(card); return [m, card];
+    });
+    for (const [m, card] of cards) card.append(drawChart(card, m, spec, state.seg));
+  }
+}
+function renderTable(calls, G) {
+  const keys = G.split.length ? G.split : [];
+  const combos = keys.reduce((acc, k) => acc.flatMap(a => selVals(k).map(v => ({ ...a, [k]: v }))), [{}]);
+  const rows = combos.map(cb => ({ cb, calls: calls.filter(c => keys.every(k => c[k] === cb[k])) })).filter(r => r.calls.length);
+  const ms = ALLM;
+  const tbl = h("table", { class: "data" });
+  tbl.append(h("thead", {}, h("tr", {}, keys.map(k => h("th", { text: k === "task" ? "Task" : DIM[k].label })), h("th", { text: "Calls" }),
+    ms.map(m => h("th", { title: m.desc }, m.label, m.group === "Agent voice" ? h("span", { class: "muted", text: ` (${SEGS[state.seg].toLowerCase()})` }) : null)))));
+  const tb = h("tbody");
+  for (const r of rows) {
+    tb.append(h("tr", {}, keys.map(k => h("td", {}, h("span", { class: "dot", style: `background:${valColor(k, r.cb[k])}` }), valLabel(k, r.cb[k]))),
+      h("td", { class: "num", text: r.calls.length }), ms.map(m => h("td", { class: "num", text: fmtAgg(m, agg(m, r.calls, state.seg)) }))));
+  }
+  if (!keys.length) tb.append(h("tr", {}, h("td", { class: "num", text: calls.length }), ms.map(m => h("td", { class: "num", text: fmtAgg(m, agg(m, calls, state.seg)) }))));
+  tbl.append(tb);
+  return h("div", { class: "tablewrap" }, tbl);
+}
+
+/* ---------- calls list ---------- */
+const STI = { ok: "✓", no: "✕", na: "–" };
+const stSpan = (kind, text) => h("span", { class: "st " + kind }, h("span", { "aria-hidden": "true", text: STI[kind] || "!" }), text);
+const callerSpan = c => ({ valid: stSpan("ok", "kept to task"), cleared: stSpan("ok", "kept to task*"), slip_minor: stSpan("warn", "minor slip"), slip_outcome: stSpan("no", "slip changed outcome") }[c.m.caller] || stSpan("na", "unchecked"));
+const PLAY = '<svg viewBox="0 0 10 10"><path d="M2 1 L9 5 L2 9 Z"/></svg>', PAUSE = '<svg viewBox="0 0 10 10"><rect x="1.5" y="1" width="2.6" height="8"/><rect x="5.9" y="1" width="2.6" height="8"/></svg>';
+let miniId = null;
+function renderCalls(calls) {
+  const box = $("#calls"); box.textContent = "";
+  if (!calls.length) { box.append(h("div", { class: "empty", text: "No calls match." })); return; }
+  const order = (k, v) => orderedVals(k).indexOf(v);
+  const sorted = [...calls].sort((a, b) => order("given", a.given) - order("given", b.given) || order("model", a.model) - order("model", b.model) || order("mood", a.mood) - order("mood", b.mood) || order("tone", a.tone) - order("tone", b.tone) || order("timing", a.timing) - order("timing", b.timing));
+  const tbl = h("table", { class: "data calls" });
+  tbl.append(h("thead", {}, h("tr", {}, ["", "Voice agent", "Caller mood", "Wants", "Agent learns it", "Task", "Chat timing", "Caller", "Length"].map(t => h("th", { text: t })))));
+  const tb = h("tbody");
+  for (const c of sorted) {
+    const btn = h("button", { type: "button", class: "play-mini", "aria-label": `Play ${c.id}`, "data-id": c.id });
+    btn.innerHTML = miniId === c.id && !$("#mini-audio").paused ? PAUSE : PLAY;
+    btn.addEventListener("click", ev => { ev.stopPropagation(); miniPlay(c, btn); });
+    const tr = h("tr", { tabindex: 0, onclick: () => openCall(c.id), onkeydown: ev => { if (ev.key === "Enter") openCall(c.id); } },
+      h("td", {}, btn),
+      h("td", {}, h("span", { class: "dot", style: `background:${valColor("model", c.model)}` }), MODEL_NAME[c.model]),
+      h("td", { text: valLabel("mood", c.mood) }),
+      h("td", { text: c.tone === "none" ? "No preference" : `${valLabel("tone", c.tone)} · ${c.timing === "first" ? "chat first" : "chat after"}` }),
+      h("td", {}, valLabel("given", c.given), h("span", { class: "mono muted", text: " " + c.given })),
+      h("td", {}, c.m.task_ok ? stSpan("ok", "done right") : stSpan("no", c.m.write ? "wrong flights" : c.m.transferred ? "transferred" : "not done")),
+      h("td", {}, c.m.timing_ok == null ? stSpan("na", c.given === "B0" ? "no pref." : "n/a") : c.m.timing_ok ? stSpan("ok", "followed") : stSpan("no", "not followed")),
+      h("td", {}, callerSpan(c)),
+      h("td", { class: "num mono", text: mmss(c.dur) }));
+    tb.append(tr);
+  }
+  tbl.append(tb);
+  box.append(h("div", { class: "tablewrap calls-wrap" }, tbl), h("p", { class: "muted", style: "font-size:12px;margin:6px 0 0", text: `${calls.length} calls. * flagged by the automatic caller check, cleared on manual review.` }));
+}
+function miniPlay(c, btn) {
+  const a = $("#mini-audio");
+  if (miniId === c.id && !a.paused) { a.pause(); btn.innerHTML = PLAY; return; }
+  for (const b of document.querySelectorAll(".play-mini")) b.innerHTML = PLAY;
+  if (miniId !== c.id) { a.src = c.audio; miniId = c.id; }
+  a.play().then(() => { btn.innerHTML = PAUSE; }).catch(() => { btn.innerHTML = PLAY; });
+  a.onended = () => { btn.innerHTML = PLAY; };
+}
+
+/* ---------- detail ---------- */
+let player = null;
+function openCall(id) { if (location.hash !== "#call-" + id) location.hash = "call-" + id; else route(); }
+function modelAvg(model, f) { const v = CALLS.filter(c => c.model === model).map(f).filter(x => x != null); return mean(v); }
+function renderDetail(c) {
+  const box = $("#detail"); box.textContent = "";
+  $("#mini-audio").pause();
+  const S = DATA.setup, cf = c.cfg ? S.cfgs[c.cfg] : null;
+  const back = h("button", { type: "button", class: "back", onclick: () => { location.hash = lastView; } }, { findings: "← Back to findings", side: "← Back to side by side" }[lastView] || "← Back to all calls");
+  const wants = c.tone === "none" ? "no preference (baseline)" : `${c.tone} voice · ${c.timing === "first" ? "chat first" : "task first, chat after"}`;
+  const title = h("div", { class: "d-title" }, back,
+    h("h1", { text: `${MODEL_NAME[c.model]} with a ${c.mood} caller` }),
+    h("div", { class: "pills" },
+      h("span", { class: "pill" }, h("span", { class: "dot", style: `background:${valColor("model", c.model)};margin:0` }), MODEL_NAME[c.model]),
+      h("span", { class: "pill", text: `Caller: ${c.mood}` }), h("span", { class: "pill", text: `Wants: ${wants}` }),
+      h("span", { class: "pill" }, `Agent learns it: ${valLabel("given", c.given)} `, h("span", { class: "mono", text: c.given })),
+      h("span", { class: "pill " + (c.m.task_ok ? "ok" : "no"), text: c.m.task_ok ? "✓ Task done right" : "✕ Task not done right" }),
+      c.m.timing_ok == null ? null : h("span", { class: "pill " + (c.m.timing_ok ? "ok" : "no"), text: c.m.timing_ok ? "✓ Chat timing followed" : "✕ Chat timing not followed" }),
+      h("span", { class: "pill " + (c.m.caller === "slip_outcome" ? "no" : c.m.caller === "slip_minor" ? "warn" : ""), text: { valid: "Caller kept to task", cleared: "Caller kept to task (flag cleared)", slip_minor: "Caller: minor slip", slip_outcome: "Caller slip changed the outcome" }[c.m.caller] || "Caller unchecked" }),
+      h("span", { class: "pill", text: c.m.ended === "natural" ? "Ended with goodbye" : "Ended in silence" })));
+  // player
+  const audio = h("audio", { preload: "metadata", src: c.audio });
+  const playBtn = h("button", { type: "button", class: "bigplay", "aria-label": "Play the whole call" }); playBtn.innerHTML = PLAY;
+  const time = h("span", { class: "ptime", text: `0:00 / ${mmss(c.dur)}` });
+  const speed = h("select", { id: "speed", "aria-label": "Speed", class: "btn" }, ["1", "1.25", "1.5", "2"].map(v => h("option", { value: v, text: v + "×" })));
+  const laneBtn = (lab, idx, col) => h("button", { type: "button", class: "chip", "aria-pressed": "true", "data-lane": idx }, h("span", { class: "sw", style: `background:${col}` }), lab);
+  const bA = laneBtn("Caller", 0, css("--ink-2")), bB = laneBtn("Agent", 1, valColor("model", c.model));
+  const canvas = h("canvas", { "aria-label": "Waveforms: caller on top, agent below; click to seek" });
+  const hov = h("span", { class: "hover-t", hidden: true });
+  const wave = h("div", { class: "wave" }, canvas, hov);
+  const playerBox = h("div", { class: "player" },
+    h("div", { class: "pctl" }, playBtn, time, speed, h("div", { class: "lanes-ctl" }, h("span", { class: "muted", style: "font-size:12px", text: "Hear:" }), bA, bB)),
+    wave, h("div", { class: "legend-row", style: "font-size:12px" },
+      h("span", {}, h("i", { style: `background:${css("--ink-2")}` }), "Caller (GPT-Live, left channel)"),
+      h("span", {}, h("i", { style: `background:${valColor("model", c.model)}` }), `Agent (${MODEL_NAME[c.model]}, right channel)`),
+      c.pref_line ? h("span", {}, h("i", { style: `background:${css("--hl-ink")}` }), "Preference said") : null,
+      h("span", {}, h("i", { style: `background:${css("--ink")};height:10px;width:2px` }), "Tool call")),
+    audio);
+  // transcript
+  const tr = h("div", { class: "transcript", role: "list" });
+  const rows = [...c.utts.map(u => ({ t: u[1], u })), ...c.tools.map(t => ({ t: t[0], tool: t }))].sort((a, b) => a.t - b.t);
+  const uttEls = [];
+  for (const r of rows) {
+    if (r.u) {
+      const [spk, st, en, text, pref] = r.u;
+      const el = h("div", { class: "utt" + (pref ? " pref" : ""), role: "listitem", tabindex: 0, onclick: () => seek(st / 1000), onkeydown: ev => { if (ev.key === "Enter") seek(st / 1000); } },
+        h("span", { class: "t", text: mmss(st / 1000) }),
+        h("span", { class: "who" }, h("i", { style: `background:${spk === "A" ? css("--ink-2") : valColor("model", c.model)}` }), spk === "A" ? "Caller" : "Agent"),
+        h("span", {}, text, pref ? h("span", { class: "badge", style: `color:${css("--hl-ink")}`, text: "preference" }) : null));
+      el._st = st; el._en = en; uttEls.push(el); tr.append(el);
+    } else {
+      const [t, name, args, ok] = r.tool;
+      tr.append(h("div", { class: "utt tool", role: "listitem" }, h("span", { class: "t", text: mmss(t / 1000) }), h("span", { class: "who", text: "tool" }),
+        h("span", { text: `${name}(${args.replace(/^\{|\}$/g, "")}) → ${ok ? "ok" : "error"}` })));
+    }
+  }
+  const follow = h("input", { type: "checkbox", id: "follow", checked: true });
+  const trCard = h("div", { class: "card", style: "padding:10px 8px" },
+    h("div", { style: "display:flex;justify-content:space-between;gap:8px;padding:0 8px 6px;align-items:center" }, h("h3", { text: "Transcript" }),
+      h("label", { for: "follow", style: "font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center" }, follow, "Follow playback")),
+    tr, h("p", { class: "muted", style: "font-size:11.5px;margin:6px 8px 0", text: "Transcripts are the models' own, so they can drop or garble a few words; the audio is the record." }));
+  // right column
+  const given = h("div", { class: "card" }, h("span", { class: "eyebrow", text: "What the agent got" }));
+  if (c.given === "B0") given.append(h("h3", { text: "Nothing" }), h("p", { class: "ink2", text: COND_TEXT.B0 }));
+  else if (c.given === "E1" || c.given === "E2") {
+    given.append(h("h3", { text: c.given === "E1" ? "The caller asks for it in the call" : "The caller hints at it in the call" }),
+      h("p", { class: "ink2", text: "Nothing in the agent's instructions. The caller's line:" }), h("div", { class: "quote", text: c.pref_line }));
+    const first = c.utts.find(u => u[4]);
+    if (first) given.append(h("button", { type: "button", class: "btn", onclick: () => seek(first[1] / 1000) }, `Jump to ${mmss(first[1] / 1000)}`));
+  } else {
+    given.append(h("h3", { text: c.given === "M2" ? "A memory note in its instructions" : c.given === "H1" ? "One earlier call in its instructions" : "Two earlier calls in its instructions" }),
+      h("p", { class: "ink2", text: "The caller says nothing about it today. Exactly what the agent's instructions contained:" }), h("div", { class: "pre", text: c.given_text || "(missing)" }));
+  }
+  if (cf) given.append(h("p", { class: "muted", style: "font-size:12.5px;margin-top:8px", text: `Target preference: ${prefText(cf.tone, cf.timing)}.` }));
+  const t = S.task, w = c.m.write;
+  const outcome = h("div", { class: "card" }, h("span", { class: "eyebrow", text: "Task outcome" }),
+    h("h3", { text: c.m.task_ok ? "Done right" : w ? "Changed to the wrong flights" : c.m.transferred ? "Transferred to a human, nothing changed" : "Nothing changed" }),
+    h("dl", { class: "kv" },
+      h("dt", { text: "Agent did" }), h("dd", { text: w ? `${w.flights.join(" + ")} on ${w.date}, ${w.cabin}${w.price ? `, $${w.price}` : ""}, paid with ${w.payment.replace(/_/g, " ")}` : "no change made" }),
+      h("dt", { text: "Correct" }), h("dd", { text: `${t.correct.flights.map(f => f.flight).join(" + ")} on ${t.correct.date}, economy, $${t.correct.total}, gift card 8887175` }),
+      h("dt", { text: "Caller" }), h("dd", {}, callerSpan(c), c.m.caller_note ? h("div", { class: "ink2", style: "font-size:12.5px", text: c.m.caller_note }) : null)),
+    c.m.asr ? h("details", { class: "fold", style: "margin-top:8px" }, h("summary", { text: "User id lookups that failed: what the caller's audio said" }),
+      h("div", { style: "font-size:12.5px;margin-top:6px;display:grid;gap:6px" }, c.m.asr.heard.map((x, i) => h("div", {}, h("div", { class: "mono muted", text: `agent looked up ${c.m.asr.agent_used[i]}` }), h("div", { text: `caller audio (local speech recognition): …${x}` }))))) : null);
+  const tm = c.m;
+  const timing = h("div", { class: "card" }, h("span", { class: "eyebrow", text: "Chat timing" }),
+    h("h3", { text: c.timing === "none" ? "No preference (baseline behaviour)" : tm.timing_ok == null ? "Could not be judged (the flight was never done)" : tm.timing_ok ? `Followed: ${c.timing === "first" ? "chat first" : "chat after"}` : `Not followed (wanted ${c.timing === "first" ? "chat first" : "chat after"})` }),
+    h("dl", { class: "kv" },
+      h("dt", { text: "Invited before the task" }), h("dd", {}, tm.invited_before ? stSpan("ok", "yes") : stSpan("na", "no"), tm.invite_before_quote ? h("div", { class: "ink2", style: "font-size:12.5px", text: `“${tm.invite_before_quote}”` }) : null),
+      h("dt", { text: "Invited after the task" }), h("dd", {}, tm.invited_after ? stSpan("ok", "yes") : stSpan("na", "no"), tm.invite_after_quote ? h("div", { class: "ink2", style: "font-size:12.5px", text: `“${tm.invite_after_quote}”` }) : null),
+      h("dt", { text: "Started on the task" }), h("dd", { class: "mono", text: tm.first_task_s != null ? mmss(tm.first_task_s) : "–" }),
+      h("dt", { text: "Flight done" }), h("dd", { class: "mono", text: tm.task_done_s != null ? mmss(tm.task_done_s) : "never" })));
+  const VOICE = METRICS[2].items;
+  const voice = h("div", { class: "card" }, h("span", { class: "eyebrow", text: "Agent voice" }), h("h3", { text: "Start, middle and end of the call" }),
+    h("table", { class: "mini" }, h("thead", {}, h("tr", {}, h("th", { text: "" }), SEGS.map(sg => h("th", { text: sg === "Whole call" ? "Whole" : sg })), h("th", { text: `${MODEL_NAME[c.model]} avg.` }))),
+      h("tbody", {}, VOICE.map(m => h("tr", {}, h("td", { text: `${m.label} (${m.unit})` }), [0, 1, 2, 3].map(i => { const v = metricValue(m, c, i); return h("td", { text: v == null ? "–" : m.fmt(v) }); }),
+        h("td", { class: "ref", text: (() => { const v = modelAvg(c.model, x => metricValue(m, x, 3)); return v == null ? "–" : m.fmt(v); })() }))))),
+    h("p", { class: "muted", style: "font-size:11.5px;margin:6px 0 0", text: "Energy and positivity: speech emotion model on the agent's audio (0 to 1). Thirds are by the agent's turns." }));
+  const TT = METRICS[3].items;
+  const turn = h("div", { class: "card" }, h("span", { class: "eyebrow", text: "Turn-taking" }),
+    h("table", { class: "mini" }, h("thead", {}, h("tr", {}, h("th", { text: "" }), h("th", { text: "This call" }), h("th", { text: `${MODEL_NAME[c.model]} avg.` }))),
+      h("tbody", {}, TT.map(m => {
+        const v = m.get(c), av = modelAvg(c.model, x => m.get(x));
+        const here = v == null ? "–" : m.kind === "rate" ? (v ? "yes" : "no") : m.unit === "per call" ? String(v) : `${m.fmt(v)} ${m.unit}`;
+        const ref = av == null ? "–" : m.kind === "rate" ? `${Math.round(av * 100)}% of calls` : `${m.fmt(av)} ${m.unit}`;
+        return h("tr", {}, h("td", { text: m.label }), h("td", { text: here }), h("td", { class: "ref", text: ref }));
+      }))));
+  const moodC = moodCard(c.mood, S.moods[c.mood]);
+  const taskC = taskCard(t, true);
+  const grid = h("div", { class: "d-grid" }, h("div", { class: "stack" }, trCard), h("div", { class: "stack" }, given, outcome, timing, voice, turn, moodC, taskC));
+  box.append(h("div", { style: "display:grid;gap:16px" }, title, playerBox, grid));
+  player = makePlayer(c, audio, canvas, hov, playBtn, time, speed, bA, bB, uttEls, tr, follow);
+}
+function makePlayer(c, audio, canvas, hov, playBtn, time, speed, bA, bB, uttEls, tr, follow) {
+  let ctx = null, gains = null, raf = 0, lastUser = 0;
+  const sameOrigin = (() => { try { return new URL(audio.src, location.href).origin === location.origin; } catch (e) { return false; } })();
+  if (!sameOrigin) { bA.disabled = bB.disabled = true; bA.title = bB.title = "Not available here"; }
+  function graph() {
+    if (ctx || !sameOrigin) return;
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ctx.createMediaElementSource(audio), sp = ctx.createChannelSplitter(2), mg = ctx.createChannelMerger(2);
+      gains = [ctx.createGain(), ctx.createGain()];
+      src.connect(sp); sp.connect(gains[0], 0); sp.connect(gains[1], 1); gains[0].connect(mg, 0, 0); gains[1].connect(mg, 0, 1); mg.connect(ctx.destination);
+    } catch (e) { ctx = null; gains = null; bA.disabled = bB.disabled = true; }
+  }
+  const lane = (btn, i) => btn.addEventListener("click", () => {
+    graph(); if (!gains) return;
+    const on = btn.getAttribute("aria-pressed") !== "true"; btn.setAttribute("aria-pressed", on ? "true" : "false"); gains[i].gain.value = on ? 1 : 0;
+  });
+  lane(bA, 0); lane(bB, 1);
+  playBtn.addEventListener("click", () => {
+    graph(); if (ctx && ctx.state === "suspended") ctx.resume();
+    if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+  });
+  audio.addEventListener("play", () => { playBtn.innerHTML = PAUSE; playBtn.setAttribute("aria-label", "Pause"); loop(); });
+  audio.addEventListener("pause", () => { playBtn.innerHTML = PLAY; playBtn.setAttribute("aria-label", "Play the whole call"); cancelAnimationFrame(raf); draw(); });
+  speed.addEventListener("change", () => { audio.playbackRate = +speed.value; });
+  tr.addEventListener("wheel", () => { lastUser = performance.now(); }, { passive: true });
+  tr.addEventListener("touchmove", () => { lastUser = performance.now(); }, { passive: true });
+  const dur = () => audio.duration && isFinite(audio.duration) ? audio.duration : c.dur;
+  function draw() {
+    const W = canvas.clientWidth, H = canvas.clientHeight, dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== W * dpr) { canvas.width = W * dpr; canvas.height = H * dpr; }
+    const g = canvas.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    const laneH = (H - 26) / 2, mid1 = laneH / 2, mid2 = laneH + 26 + laneH / 2, D = dur(), now = audio.currentTime;
+    const colA = css("--ink-2"), colB = valColor("model", c.model), muted = css("--line-2");
+    // preference line spans
+    g.fillStyle = css("--hl");
+    for (const u of c.utts) if (u[4]) g.fillRect(u[1] / 1000 / D * W, 0, Math.max(2, (u[2] - u[1]) / 1000 / D * W), laneH);
+    const n = c.peaks[0].length, bw = W / n;
+    for (let li = 0; li < 2; li++) {
+      const pk = c.peaks[li], mid = li ? mid2 : mid1, col = li ? colB : colA;
+      for (let i = 0; i < n; i++) {
+        const x = i * bw, a = pk[i] / 99 * (laneH / 2 - 2);
+        const played = (i + 1) / n * D <= now;
+        g.fillStyle = col; g.globalAlpha = played ? 1 : 0.38;
+        g.fillRect(x, mid - a, Math.max(1, bw - 0.6), Math.max(1, 2 * a));
+      }
+    }
+    g.globalAlpha = 1;
+    // tool track
+    g.fillStyle = css("--surface-2"); g.fillRect(0, laneH + 6, W, 14);
+    for (const t of c.tools) {
+      const x = t[0] / 1000 / D * W;
+      g.fillStyle = t[3] ? css("--ink") : css("--bad"); g.fillRect(x - 1, laneH + 4, 2, 18);
+    }
+    g.fillStyle = css("--muted"); g.font = `10.5px ${css("--sans")}`;
+    g.fillText("Caller", 4, 11); g.fillText("Agent", 4, laneH + 26 + 11); g.fillText("tools", 4, laneH + 16);
+    // playhead
+    const px = now / D * W; g.fillStyle = css("--ink"); g.fillRect(px - 1, 0, 2, H);
+    time.textContent = `${mmss(now)} / ${mmss(D)}`;
+    // transcript
+    let cur = null;
+    for (const el of uttEls) { const on = now * 1000 >= el._st && now * 1000 <= el._en + 400; el.classList.toggle("now", on); if (on) cur = el; }
+    if (cur && follow.checked && !audio.paused && performance.now() - lastUser > 4000) {
+      const r = cur.offsetTop - tr.offsetTop; if (r < tr.scrollTop || r > tr.scrollTop + tr.clientHeight - 40) tr.scrollTop = r - 60;
+    }
+  }
+  function loop() { draw(); if (!audio.paused) raf = requestAnimationFrame(loop); }
+  const tAt = ev => { const r = canvas.getBoundingClientRect(); return Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width)) * dur(); };
+  let drag = false;
+  canvas.addEventListener("pointerdown", ev => { drag = true; canvas.setPointerCapture(ev.pointerId); audio.currentTime = tAt(ev); draw(); });
+  canvas.addEventListener("pointermove", ev => {
+    const r = canvas.getBoundingClientRect(); hov.hidden = false; hov.style.left = (ev.clientX - r.left) + "px"; hov.textContent = mmss(tAt(ev));
+    if (drag) { audio.currentTime = tAt(ev); draw(); }
+  });
+  canvas.addEventListener("pointerup", () => { drag = false; });
+  canvas.addEventListener("pointerleave", () => { hov.hidden = true; });
+  canvas.tabIndex = 0;
+  canvas.addEventListener("keydown", ev => {
+    if (ev.key === " ") { ev.preventDefault(); playBtn.click(); }
+    if (ev.key === "ArrowRight") { audio.currentTime = Math.min(dur(), audio.currentTime + 5); draw(); }
+    if (ev.key === "ArrowLeft") { audio.currentTime = Math.max(0, audio.currentTime - 5); draw(); }
+  });
+  audio.addEventListener("loadedmetadata", draw);
+  audio.addEventListener("seeked", draw);
+  requestAnimationFrame(draw);
+  return { audio, draw, seek: sec => { audio.currentTime = sec; draw(); lastUser = 0; } };
+}
+function seek(sec) { if (player) { player.seek(sec); if (player.audio.paused) player.audio.play().catch(() => {}); } }
+
+/* ---------- findings (home) ---------- */
+const MODEL_CS = () => DIM.model.values.map(([v]) => ({ k: v, name: MODEL_NAME[v], color: valColor("model", v) }));
+const isE = c => c.given === "E1" || c.given === "E2";
+const FINDINGS = [
+  { claim: "Agents almost never use the caller's history. They follow a wish only when the caller says it in this call.",
+    detail: ["The wish tested here: talk about the caller's news (the dog, the engagement) before the flight change, or after it.",
+             "Said in this call: the agent picks the right moment in 7 of 11 calls (4 of 8 when only hinted).",
+             "Only in the agent's instructions, as past calls or a memory note: 2 of 35, both GPT-Live.",
+             "With no wish anywhere, none of the 6 baseline calls invites the caller to talk about it."],
+    charts: [{ m: "timing", sub: "By how the agent learns the wish", xs: () => ["E1", "E2", "H1", "H2", "M2"].map(g => ({ k: g, label: SHORT[g], name: valLabel("given", g), f: c => c.given === g })) }],
+    explore: { given: ["E1", "E2", "H1", "H2", "M2"], model: ["gpt-live", "grok", "gemini"] },
+    listen: [["gpt-live-sad-soft-first-e1", "GPT-Live, asked in the call"], ["gpt-live-sad-soft-first-h1", "GPT-Live, only a past call"]] },
+  { claim: "The agent's voice mirrors the caller's mood, not the requested tone.",
+    detail: ["All three agents sound more positive and more energetic with happy callers (each p < .01).",
+             "Asking for a soft or an upbeat voice moves positivity far less; Grok even sounds less positive when asked for upbeat."],
+    charts: [{ m: "valence", sub: "By caller mood", seg: 3, xs: () => ["sad", "happy"].map(v => ({ k: v, label: valLabel("mood", v) + " caller", name: valLabel("mood", v) + " caller", f: c => c.mood === v && c.given !== "B0" })) },
+             { m: "valence", sub: "By requested voice", seg: 3, xs: () => ["soft", "upbeat"].map(v => ({ k: v, label: "Wants " + v, name: "Wants " + v, f: c => c.tone === v })) }],
+    explore: { mood: ["sad", "happy"], model: ["gpt-live", "grok", "gemini"] },
+    listen: [["grok-sad-soft-first-e1", "Grok, sad caller"], ["grok-happy-soft-first-e1", "Grok, happy caller (same request)"]] },
+  { claim: "Only Gemini changes its voice on request, and only toward soft.",
+    detail: ["Energy when the caller asked in the call: Gemini 0.45 for soft, 0.51 for upbeat, 0.52 when not asked.",
+             "GPT-Live and Grok stay within 0.03 of their default either way."],
+    charts: [{ m: "arousal", sub: "Caller asked in the call (said or hinted) vs. not asked", seg: 3, xs: () => [
+      { k: "s", label: "Asked soft", name: "Asked for a soft voice", f: c => isE(c) && c.tone === "soft" },
+      { k: "u", label: "Asked upbeat", name: "Asked for an upbeat voice", f: c => isE(c) && c.tone === "upbeat" },
+      { k: "n", label: "Not asked", name: "Not asked (past calls or memory only)", f: c => ["H1", "H2", "M2"].includes(c.given) }] }],
+    explore: { given: ["E1", "E2"], tone: ["soft", "upbeat"], model: ["gpt-live", "grok", "gemini"] },
+    listen: [["gemini-sad-soft-first-e1", "Gemini, asked for soft"], ["gemini-sad-baseline-b0", "Gemini, no request"]] },
+  { claim: "Task success splits the agents: GPT-Live 19 of 22, Grok 15 of 22, Gemini 4 of 22.",
+    detail: ["Gemini most often books a pricier connection (HAT110 + HAT132, $295 instead of $207; 10 of its 18 failures) or cannot find the account from the spelled user ID.",
+             "In 5 calls the simulated caller itself slipped and changed the outcome. They are marked, not removed."],
+    charts: [{ m: "task", sub: "All 22 calls per agent", byModel: true }],
+    explore: { model: ["gpt-live", "grok", "gemini"] },
+    listen: [["gemini-sad-soft-first-e1", "Gemini books the pricier flights"]] },
+  { claim: "Grok answers fastest, Gemini leaves the longest gaps, GPT-Live rarely says goodbye.",
+    detail: ["Average response time: Grok 1.28 s, GPT-Live 1.81 s, Gemini 2.66 s. Gemini waits more than 3 s about 2.6 times per call.",
+             "15 of 22 GPT-Live calls end in silence instead of a goodbye."],
+    charts: [{ m: "lat", sub: "All 22 calls per agent", byModel: true }, { m: "bye", sub: "All 22 calls per agent", byModel: true }],
+    explore: { model: ["gpt-live", "grok", "gemini"] },
+    listen: [["grok-happy-upbeat-after-e1", "Grok"], ["gemini-happy-upbeat-after-e1", "Gemini"], ["gpt-live-happy-upbeat-after-e1", "GPT-Live"]] },
+];
+function renderFindings() {
+  const box = $("#findings"); box.textContent = "";
+  box.append(h("div", { class: "hero" },
+    h("span", { class: "eyebrow", text: `Full-duplex voice agents · ${CALLS.length} simulated phone calls` }),
+    h("h1", { text: "Voice agents act on a preference only when the caller says it. Their voice follows the caller's mood, not the request." }),
+    h("p", { class: "lede", text: "Why: a caller who is grieving or celebrating may want a soft or an upbeat voice, and may want to talk about it before or after the business. People say this once and expect it to stick. We test whether today's speech-to-speech agents act on it when it is said, hinted, or only in the call history." })));
+  const spec = [
+    ["Task", "Move a flight to the next day, cheapest Economy (τ²-bench airline). Success = the exact booking change."],
+    ["Caller", "GPT-Live, by voice. Sad (the family dog died) or happy (their sister got engaged)."],
+    ["Preference", "Voice: soft or upbeat. Small talk: before the flight, or after it."],
+    ["How the agent learns it", "Not at all · said · hinted · one past call · two past calls (both moods) · memory note."],
+    ["Agents", "GPT-Live, Grok Voice, Gemini Live. Same airline tools and policy (τ-Voice setup)."],
+    ["Scale", `${CORE.length} calls in the main grid, one per setting${CALLS.length > CORE.length ? `, plus ${CALLS.length - CORE.length} where the caller says it with the other voice and timing pairings (see Side by side)` : ""}. A demo, not a benchmark.`]];
+  box.append(h("div", { class: "spec" }, spec.map(([a, b]) => h("div", {}, h("b", { text: a }), h("span", { text: b })))));
+  box.append(h("div", { class: "legend-row", style: "margin-bottom:4px" }, h("span", { class: "muted", text: "Bars:" }), MODEL_CS().map(c => h("span", {}, h("i", { style: `background:${c.color}` }), c.name))));
+  FINDINGS.forEach((F, i) => {
+    const charts = h("div", { class: "charts" });
+    const left = h("div", {}, h("span", { class: "num", text: `Finding ${i + 1}` }), h("h2", { text: F.claim }), F.detail.map(t => h("p", { text: t })),
+      h("div", { class: "listen" },
+        F.listen.map(([id, lab]) => CALLS.some(c => c.id === id) ? h("a", { class: "btn", href: "#call-" + id }, "▶ ", lab) : null),
+        h("button", { type: "button", class: "btn", onclick: () => { for (const k of allKeys()) state.sel[k] = new Set(F.explore[k] || []); state.swap = false; state.view = "chart"; state.set = "main"; location.hash = "explore"; } }, "Explore these calls →")));
+    box.append(h("section", { class: "finding" }, left, charts));
+    const cards = F.charts.map(ch => {
+      const m = ALLM.find(x => x.id === ch.m);
+      const card = h("div", { class: "chart" }, h("div", { class: "ct" }, h("h3", { text: m.label }), h("span", { class: "unit", text: m.kind === "rate" ? "% of calls" : m.unit })), h("div", { class: "cd", text: ch.sub }));
+      charts.append(card); return [ch, m, card];
+    });
+    for (const [ch, m, card] of cards) {
+      const spec = ch.byModel
+        ? { xs: MODEL_CS().map(c => ({ ...c, label: c.name, f: x => x.model === c.k })), cs: [{ k: null }], cell: (x) => CORE.filter(x.f) }
+        : { xs: ch.xs(), cs: MODEL_CS(), cell: (x, c) => CORE.filter(cl => x.f(cl) && cl.model === c.k) };
+      card.append(drawChart(card, m, spec, ch.seg ?? 3));
+    }
+  });
+  box.append(h("div", { class: "foot" },
+    h("p", { text: `How to read this. The findings use the ${CORE.length} main-grid calls. One call per setting, so each bar is a handful of calls: read directions, not decimals. Chat timing is judged from the transcript by a text-only LLM judge. Energy and positivity come from a speech emotion model run on the agent's own audio; it separates the sad and happy callers clearly (p < .001). p-values are permutation tests across calls.` }),
+    h("p", {}, "Hear the calls where the caller asks in plain words in ", h("a", { href: "#side", text: "Side by side" }), ". Every call, transcript and score is in ", h("a", { href: "#explore", text: "Explore calls" }), ".")));
+}
+
+/* ---------- side by side ---------- */
+const SIDE_ROWS = [["soft", "first"], ["soft", "after"], ["upbeat", "first"], ["upbeat", "after"]];
+const sideCells = new Map();
+let sideCur = null, sideRaf = 0, sideScroll = 0;
+function drawMini(canvas, c, now) {
+  const W = canvas.clientWidth, H = canvas.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (!W || !H) return;
+  if (canvas.width !== Math.round(W * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
+  const g = canvas.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const D = c.dur, gap = 4, laneH = (H - gap) / 2;
+  g.fillStyle = css("--hl");
+  for (const u of c.utts) if (u[4]) g.fillRect(u[1] / 1000 / D * W, 0, Math.max(2, (u[2] - u[1]) / 1000 / D * W), laneH);
+  const cols = Math.max(1, Math.floor(W / 2));
+  for (let li = 0; li < 2; li++) {
+    const pk = c.peaks[li], n = pk.length, mid = (li ? laneH + gap : 0) + laneH / 2;
+    g.fillStyle = li ? valColor("model", c.model) : css("--ink-2");
+    for (let x = 0; x < cols; x++) {
+      const i0 = Math.floor(x / cols * n), i1 = Math.max(i0 + 1, Math.floor((x + 1) / cols * n));
+      let m = 0; for (let i = i0; i < i1 && i < n; i++) m = Math.max(m, pk[i]);
+      const a = m / 99 * (laneH / 2 - 1);
+      g.globalAlpha = now == null ? 0.8 : (x + 1) / cols * D <= now ? 1 : 0.32;
+      g.fillRect(x * W / cols, mid - a, Math.max(1, W / cols - 0.5), Math.max(1, 2 * a));
+    }
+  }
+  g.globalAlpha = 1;
+  const fc = c.tools.find(t => t[1] === "update_reservation_flights" && t[3]);
+  if (fc) { g.fillStyle = css("--ink"); g.fillRect(fc[0] / 1000 / D * W - 0.75, 0, 1.5, H); }
+  if (now != null) { g.fillStyle = css("--focus"); g.fillRect(now / D * W - 1, 0, 2, H); }
+}
+function refreshCell(id) {
+  const o = sideCells.get(id); if (!o) return;
+  const a = $("#mini-audio"), cur = sideCur === id;
+  drawMini(o.canvas, o.c, cur ? a.currentTime : null);
+  o.btn.innerHTML = cur && !a.paused ? PAUSE : PLAY;
+  o.btn.setAttribute("aria-label", (cur && !a.paused ? "Pause: " : "Play: ") + o.name);
+  o.time.textContent = cur && (a.currentTime > 0 || !a.paused) ? `${mmss(a.currentTime)} / ${mmss(o.c.dur)}` : mmss(o.c.dur);
+}
+const drawSide = () => { for (const id of sideCells.keys()) refreshCell(id); };
+function sideLoop() {
+  cancelAnimationFrame(sideRaf);
+  const step = () => { if (!sideCur) return; refreshCell(sideCur); if (!$("#mini-audio").paused) sideRaf = requestAnimationFrame(step); };
+  step();
+}
+function sidePlay(c, at) {
+  const a = $("#mini-audio"), prev = sideCur;
+  if (prev === c.id && at == null) { if (a.paused) a.play().catch(() => {}); else a.pause(); return; }
+  if (prev !== c.id) { a.pause(); a.src = c.audio; sideCur = c.id; miniId = null; if (prev) refreshCell(prev); }
+  if (at != null) { const go = () => { a.currentTime = at; refreshCell(c.id); }; if (a.readyState >= 1) go(); else a.addEventListener("loadedmetadata", go, { once: true }); }
+  a.play().catch(() => refreshCell(c.id));
+}
+function sideCell(c) {
+  const name = `${MODEL_NAME[c.model]}, ${c.mood} caller, ${c.tone} voice, chat ${c.timing}`;
+  const btn = h("button", { type: "button", class: "play-mini", "aria-label": "Play: " + name }); btn.innerHTML = PLAY;
+  const time = h("span", { class: "ptime", text: mmss(c.dur) });
+  const canvas = h("canvas", { role: "img", "aria-label": "Waveform: caller on top, agent below. Click to play from that point." });
+  const want = c.timing === "first" ? "chat first" : "chat after";
+  const marks = h("div", { class: "marks" },
+    c.m.task_ok ? stSpan("ok", "task done") : stSpan("no", "task failed"),
+    c.m.timing_ok == null ? stSpan("na", `${want}: n/a`) : c.m.timing_ok ? stSpan("ok", want) : stSpan("no", `no ${want}`),
+    c.m.caller === "slip_outcome" ? stSpan("warn", "caller slip") : null);
+  btn.addEventListener("click", () => sidePlay(c));
+  canvas.addEventListener("pointerdown", ev => { const r = canvas.getBoundingClientRect(); sidePlay(c, Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width)) * c.dur); });
+  sideCells.set(c.id, { c, canvas, btn, time, name });
+  return h("div", { class: "sx-cell", role: "cell" },
+    h("div", { class: "top" }, btn, h("span", { class: "mname" }, h("span", { class: "dot", style: `background:${valColor("model", c.model)}` }), MODEL_NAME[c.model]), time,
+      h("a", { class: "open", href: "#call-" + c.id }, "Open call ›")),
+    canvas, marks);
+}
+function renderSide() {
+  const box = $("#side"); box.textContent = ""; sideCells.clear();
+  const E = CALLS.filter(c => c.given === "E1");
+  const key = (style, lab) => h("span", {}, h("i", { style }), lab);
+  box.append(h("div", { class: "side-head" },
+    h("span", { class: "eyebrow", text: `${E.length} calls · the caller asks in plain words` }),
+    h("h1", { text: "Same request, three voice agents" }),
+    h("p", { text: "Each row is one request, said by the caller early in the call. Each column is one agent. Press play to hear the whole call, or click the waveform to start from there. Open a call for its transcript and scores." }),
+    h("div", { class: "side-key" },
+      key(`width:14px;height:8px;background:${css("--ink-2")}`, "Caller (top)"),
+      key("width:14px;height:8px;background:linear-gradient(90deg,var(--s1) 0 33%,var(--s2) 33% 66%,var(--s3) 66%)", "Agent (bottom)"),
+      key(`width:14px;height:8px;background:${css("--hl")};box-shadow:inset 0 0 0 1px ${css("--line-2")}`, "The request"),
+      key(`width:2px;height:12px;background:${css("--ink")}`, "Flight changed"))));
+  for (const mood of ["sad", "happy"]) {
+    const md = DATA.setup.moods[mood];
+    const grid = h("div", { class: "sx", role: "table", "aria-label": md.title });
+    grid.append(h("div", { class: "colh corner", role: "columnheader", text: "The caller asks for" }),
+      ...DIM.model.values.map(([v]) => h("div", { class: "colh", role: "columnheader" }, h("span", { class: "dot", style: `background:${valColor("model", v)}` }), MODEL_NAME[v])));
+    for (const [tone, timing] of SIDE_ROWS) {
+      const cf = DATA.setup.cfgs[`demo_${mood}_${tone}_${timing}`];
+      grid.append(h("div", { class: "rowh", role: "rowheader" },
+        h("h3", { text: `${tone === "soft" ? "Soft" : "Upbeat"} voice, ${timing === "first" ? "chat first" : "chat after the flight"}` }),
+        cf ? h("p", { class: "quote", text: cf.E1 }) : null));
+      for (const [mv] of DIM.model.values) {
+        const c = E.find(x => x.mood === mood && x.tone === tone && x.timing === timing && x.model === mv);
+        grid.append(c ? sideCell(c) : h("div", { class: "sx-cell muted", role: "cell", text: "Not run" }));
+      }
+    }
+    box.append(h("section", { class: "mood-block" }, h("div", { class: "mb-head" }, h("h2", { text: md.title.replace(": ", " caller: ") }), h("p", { text: `“${md.disclosure}”` })), grid));
+  }
+  box.append(h("p", { class: "muted", style: "font-size:12.5px;margin-top:18px;max-width:90ch" },
+    "Soft with chat first and upbeat with chat after are from the main grid on the Findings page; the other two pairings were run afterwards with the same caller, task and agents. ",
+    h("a", { href: "#explore", style: "color:var(--ink)", onclick: () => { for (const k of allKeys()) state.sel[k] = new Set(); state.sel.given = new Set(["E1"]); state.sel.model = new Set(["gpt-live", "grok", "gemini"]); state.set = "all"; state.swap = false; } }, "Compare these calls in Explore →")));
+  requestAnimationFrame(drawSide);
+}
+
+/* ---------- routing & update ---------- */
+let lastView = "findings", curView = null;
+function route() {
+  const hs = location.hash.slice(1);
+  const c = hs.startsWith("call-") && CALLS.find(x => x.id === hs.slice(5));
+  if (player) { player.audio.pause(); player = null; }
+  if (curView === "side") sideScroll = window.scrollY;
+  $("#mini-audio").pause();
+  const view = c ? "detail" : hs === "explore" ? "explore" : hs === "side" ? "side" : "findings";
+  const prevView = curView; curView = view;
+  if (view !== "side") sideCur = null;
+  $("#findings").hidden = view !== "findings"; $("#side").hidden = view !== "side"; $("#overview").hidden = view !== "explore"; $("#detail").hidden = view !== "detail";
+  for (const v of ["findings", "side", "explore"]) $("#nav-" + v).setAttribute("aria-current", view === v ? "page" : "false");
+  if (view === "detail") { renderDetail(c); window.scrollTo(0, 0); return; }
+  $("#detail").textContent = "";
+  lastView = view;
+  if (view === "explore") update(); else if (view === "side") { renderSide(); window.scrollTo(0, prevView === "detail" ? sideScroll : 0); } else renderFindings();
+}
+let lastW = 0;
+function update() {
+  const calls = CALLS.filter(match);
+  syncRail(calls.length);
+  renderSetup(calls); renderResults(calls); renderCalls(calls); save();
+}
+function init(data) {
+  lastW = innerWidth;
+  DATA = data; CALLS = data.calls; CORE = CALLS.filter(isCore);
+  TASKS = { task6: { title: data.setup.task.title, short: "Next-day change" } };
+  defaults(); load();
+  buildRail();
+  $("#reset").addEventListener("click", () => { for (const k of allKeys()) state.sel[k] = new Set(); state.swap = false; update(); });
+  $("#deflt").addEventListener("click", () => { defaults(); update(); });
+  $("#v-chart").addEventListener("click", () => { state.view = "chart"; update(); });
+  $("#v-table").addEventListener("click", () => { state.view = "table"; update(); });
+  $("#set-all").addEventListener("click", () => { state.set = "all"; update(); });
+  $("#set-main").addEventListener("click", () => { state.set = "main"; update(); });
+  addEventListener("hashchange", route);
+  const ma = $("#mini-audio");
+  ma.addEventListener("play", () => { if (sideCur) sideLoop(); });
+  for (const ev of ["pause", "seeked", "ended"]) ma.addEventListener(ev, () => { if (sideCur) refreshCell(sideCur); });
+  addEventListener("resize", () => {
+    if (player) { player.draw(); return; }
+    if (Math.abs(innerWidth - lastW) <= 40) return;
+    lastW = innerWidth;
+    if (!$("#overview").hidden) renderResults(CALLS.filter(match)); else if (!$("#findings").hidden) renderFindings();
+  });
+  addEventListener("resize", () => { if (!$("#side").hidden) drawSide(); });
+  const retheme = () => { if (player) player.draw(); else if (!$("#overview").hidden) renderResults(CALLS.filter(match)); else if (!$("#findings").hidden) renderFindings(); else if (!$("#side").hidden) drawSide(); };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", retheme);
+  new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  route();
+}
+fetch("data.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(init).catch(err => {
+  $("#overview").textContent = ""; $("#overview").append(h("div", { class: "empty", text: `The call data (data.json) did not load: ${err.message}. Open the page from a web server, not as a local file.` }));
+});
+</script>
+
+</body>
+</html>
