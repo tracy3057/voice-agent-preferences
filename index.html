@@ -379,19 +379,19 @@ function metricValue(m, c, seg) {
 
 /* ---------- state ---------- */
 let DATA, CALLS = [], CORE = [];
-const state = { sel: {}, swap: false, view: "chart", seg: 3, setupTab: {}, set: "all" };
+const state = { sel: {}, swap: false, view: "chart", seg: 3, setupTab: {}, set: "all", sideGiven: "E1" };
 function defaults() {
   for (const d of [...DIMS.map(x => x.key), "task"]) state.sel[d] = new Set();
   state.sel.given = new Set(["B0", "E1", "E2", "H1", "H2", "M2"]);
   state.sel.model = new Set(["gpt-live", "grok", "gemini"]);
   state.swap = false; state.set = "all";
 }
-function save() { try { localStorage.setItem("vafp-state", JSON.stringify({ sel: Object.fromEntries(Object.entries(state.sel).map(([k, v]) => [k, [...v]])), swap: state.swap, view: state.view, seg: state.seg, set: state.set })); } catch (e) {} }
+function save() { try { localStorage.setItem("vafp-state", JSON.stringify({ sel: Object.fromEntries(Object.entries(state.sel).map(([k, v]) => [k, [...v]])), swap: state.swap, view: state.view, seg: state.seg, set: state.set, sideGiven: state.sideGiven })); } catch (e) {} }
 function load() {
   try {
     const x = JSON.parse(localStorage.getItem("vafp-state") || "null"); if (!x) return false;
     for (const [k, v] of Object.entries(x.sel)) state.sel[k] = new Set(v);
-    state.swap = !!x.swap; state.view = x.view || "chart"; state.seg = Number.isInteger(x.seg) ? x.seg : 3; state.set = x.set === "main" ? "main" : "all"; return true;
+    state.swap = !!x.swap; state.view = x.view || "chart"; state.seg = Number.isInteger(x.seg) ? x.seg : 3; state.set = x.set === "main" ? "main" : "all"; state.sideGiven = x.sideGiven === "E2" ? "E2" : "E1"; return true;
   } catch (e) { return false; }
 }
 const allKeys = () => ["task", ...DIMS.map(d => d.key)];
@@ -437,7 +437,7 @@ function syncRail(n) {
   $("#set-main").setAttribute("aria-pressed", state.set === "main" ? "true" : "false");
   const nCore = CALLS.filter(isCore).length, nX = CALLS.length - nCore;
   $("#set-dim").hidden = nX === 0;
-  $("#set-hint").textContent = state.set === "all" ? `All ${CALLS.length}: the main grid (${nCore}) plus ${nX} extra calls where the caller says it (E1) with the other voice and timing pairings.` : `The ${nCore} main-grid calls, as on the Findings page.`;
+  $("#set-hint").textContent = state.set === "all" ? `All ${CALLS.length}: the main grid (${nCore}) plus ${nX} extra calls where the caller asks in the call (said or hinted) with the other voice and timing pairings.` : `The ${nCore} main-grid calls, as on the Findings page.`;
   for (const b of document.querySelectorAll(".chip")) b.setAttribute("aria-pressed", state.sel[b.dataset.dim].has(b.dataset.v) ? "true" : "false");
   for (const k of allKeys()) {
     const el = $("#mode-" + k); const size = state.sel[k].size;
@@ -980,7 +980,7 @@ function renderFindings() {
     ["Preference", "Voice: soft or upbeat. Small talk: before the flight, or after it."],
     ["How the agent learns it", "Not at all · said · hinted · one past call · two past calls (both moods) · memory note."],
     ["Agents", "GPT-Live, Grok Voice, Gemini Live. Same airline tools and policy (τ-Voice setup)."],
-    ["Scale", `${CORE.length} calls in the main grid, one per setting${CALLS.length > CORE.length ? `, plus ${CALLS.length - CORE.length} where the caller says it with the other voice and timing pairings (see Side by side)` : ""}. A demo, not a benchmark.`]];
+    ["Scale", `${CORE.length} calls in the main grid, one per setting${CALLS.length > CORE.length ? `, plus ${CALLS.length - CORE.length} where the caller asks in the call with the other voice and timing pairings (see Side by side)` : ""}. A demo, not a benchmark.`]];
   box.append(h("div", { class: "spec" }, spec.map(([a, b]) => h("div", {}, h("b", { text: a }), h("span", { text: b })))));
   box.append(h("div", { class: "legend-row", style: "margin-bottom:4px" }, h("span", { class: "muted", text: "Bars:" }), MODEL_CS().map(c => h("span", {}, h("i", { style: `background:${c.color}` }), c.name))));
   FINDINGS.forEach((F, i) => {
@@ -1077,12 +1077,16 @@ function sideCell(c) {
 }
 function renderSide() {
   const box = $("#side"); box.textContent = ""; sideCells.clear();
-  const E = CALLS.filter(c => c.given === "E1");
+  const G = state.sideGiven, E = CALLS.filter(c => c.given === G);
   const key = (style, lab) => h("span", {}, h("i", { style }), lab);
+  const gsw = h("div", { class: "seg", role: "group", "aria-label": "How the caller asks" },
+    [["E1", "Says it plainly"], ["E2", "Only hints"]].map(([g, lab]) => h("button", { type: "button", "aria-pressed": G === g ? "true" : "false",
+      onclick: () => { if (state.sideGiven === g) return; state.sideGiven = g; save(); $("#mini-audio").pause(); sideCur = null; renderSide(); } }, lab, h("span", { class: "mono", style: "opacity:.6;margin-left:6px", text: g }))));
   box.append(h("div", { class: "side-head" },
-    h("span", { class: "eyebrow", text: `${E.length} calls · the caller asks in plain words` }),
+    h("span", { class: "eyebrow", text: `${E.length} calls · the caller ${G === "E1" ? "asks in plain words" : "only hints"}` }),
     h("h1", { text: "Same request, three voice agents" }),
-    h("p", { text: "Each row is one request, said by the caller early in the call. Each column is one agent. Press play to hear the whole call, or click the waveform to start from there. Open a call for its transcript and scores." }),
+    h("p", { text: `Each row is one request, ${G === "E1" ? "said plainly" : "only hinted at"} by the caller early in the call. Each column is one agent. Press play to hear the whole call, or click the waveform to start from there. Open a call for its transcript and scores.` }),
+    h("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, h("span", { class: "muted", style: "font-size:12.5px", text: "How the caller asks:" }), gsw),
     h("div", { class: "side-key" },
       key(`width:14px;height:8px;background:${css("--ink-2")}`, "Caller (top)"),
       key("width:14px;height:8px;background:linear-gradient(90deg,var(--s1) 0 33%,var(--s2) 33% 66%,var(--s3) 66%)", "Agent (bottom)"),
@@ -1097,9 +1101,9 @@ function renderSide() {
       const cf = DATA.setup.cfgs[`demo_${mood}_${tone}_${timing}`];
       grid.append(h("div", { class: "rowh", role: "rowheader" },
         h("h3", { text: `${tone === "soft" ? "Soft" : "Upbeat"} voice, ${timing === "first" ? "chat first" : "chat after the flight"}` }),
-        cf ? h("p", { class: "quote", text: cf.E1 }) : null));
+        cf ? h("p", { class: "quote", text: cf[G] }) : null));
       for (const [mv] of DIM.model.values) {
-        const c = E.find(x => x.mood === mood && x.tone === tone && x.timing === timing && x.model === mv);
+        const c = E.find(x => x.mood === mood && x.tone === tone && x.timing === timing && x.model === mv);  // E = calls of the chosen way of asking
         grid.append(c ? sideCell(c) : h("div", { class: "sx-cell muted", role: "cell", text: "Not run" }));
       }
     }
@@ -1107,7 +1111,7 @@ function renderSide() {
   }
   box.append(h("p", { class: "muted", style: "font-size:12.5px;margin-top:18px;max-width:90ch" },
     "Soft with chat first and upbeat with chat after are from the main grid on the Findings page; the other two pairings were run afterwards with the same caller, task and agents. ",
-    h("a", { href: "#explore", style: "color:var(--ink)", onclick: () => { for (const k of allKeys()) state.sel[k] = new Set(); state.sel.given = new Set(["E1"]); state.sel.model = new Set(["gpt-live", "grok", "gemini"]); state.set = "all"; state.swap = false; } }, "Compare these calls in Explore →")));
+    h("a", { href: "#explore", style: "color:var(--ink)", onclick: () => { for (const k of allKeys()) state.sel[k] = new Set(); state.sel.given = new Set([state.sideGiven]); state.sel.model = new Set(["gpt-live", "grok", "gemini"]); state.set = "all"; state.swap = false; } }, "Compare these calls in Explore →")));
   requestAnimationFrame(drawSide);
 }
 
